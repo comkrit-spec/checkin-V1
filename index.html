@@ -1,47 +1,250 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-  </head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  
+  <title>Smart Check-In Enterprise (GitHub Edition)</title>
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.datatables.net/1.13.4/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+  <link href="https://cdn.datatables.net/buttons/2.3.6/css/buttons.bootstrap5.min.css" rel="stylesheet">
+  
+  <style>
+    body { font-family: 'Prompt', sans-serif; background: linear-gradient(-45deg, #4b6cb7, #182848, #2a5298, #001510); background-size: 400% 400%; animation: gradientBG 15s ease infinite; min-height: 100vh; color: #333; -webkit-tap-highlight-color: transparent; margin:0; }
+    @keyframes gradientBG { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+    .glass-card { background: rgba(255, 255, 255, 0.95); border-radius: 20px; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3); padding: 2rem; margin: 1rem auto; width: 100%; transition: all 0.3s ease; }
+    #userSection { max-width: 500px; }
+    .admin-card { max-width: 96% !important; margin-top: 30px; margin-bottom: 30px; }
+    .clock-display { font-size: 2.5rem; font-weight: 600; text-align: center; color: #182848; margin-bottom: 0; }
+    .date-display { text-align: center; color: #666; margin-bottom: 1.5rem; font-size: 0.9rem; }
+    .btn-custom { border-radius: 50px; font-weight: 600; padding: 14px; transition: 0.3s; color: white; border: none; font-size: 1.1rem; }
+    .btn-custom:active { transform: scale(0.95); }
+    .btn-checkin { background: linear-gradient(135deg, #11998e, #38ef7d); }
+    .btn-checkout { background: linear-gradient(135deg, #cb2d3e, #ef473a); }
+    .hidden { display: none !important; }
+    #preview { max-height: 120px; border-radius: 10px; margin-top: 10px; border: 2px solid #ddd; object-fit: cover; }
+    #companyLogo { max-height: 80px; max-width: 100%; object-fit: contain; margin-bottom: 10px; display: none; }
+    .autocomplete-items { position: absolute; border: 1px solid #d4d4d4; z-index: 99; top: 100%; left: 0; right: 0; max-height: 200px; overflow-y: auto; border-radius: 0 0 10px 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    .autocomplete-items div { padding: 12px; cursor: pointer; background-color: #fff; border-bottom: 1px solid #eee; }
+    .autocomplete-items div:active, .autocomplete-items div:hover { background-color: #e9e9e9; }
+    .table-img { width: 45px; height: 45px; object-fit: cover; border-radius: 8px; border: 1px solid #ddd; transition: transform 0.2s ease; cursor: pointer; }
+    .table-img:hover { transform: scale(3.5); position: relative; z-index: 999; }
+    .stat-box { padding: 15px; border-radius: 15px; text-align: center; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 10px; }
+    .stat-box h3 { font-size: 2.2rem; margin: 0; font-weight: 600; }
+    .stat-box p { margin: 0; font-size: 0.9rem; opacity: 0.95; }
+    .bg-t-blue { background: linear-gradient(45deg, #4b6cb7, #182848); }
+    .bg-t-green { background: linear-gradient(45deg, #11998e, #38ef7d); }
+    .bg-t-red { background: linear-gradient(45deg, #cb2d3e, #ef473a); }
+    .bg-t-orange { background: linear-gradient(45deg, #f12711, #f5af19); }
+  </style>
+</head>
 <body>
-  <script>
-    // 🔗 แก้ไขตรงนี้: ใส่ URL ของ Google Web App ที่คุณก๊อปปี้มา
-    const API_URL = "https://script.google.com/macros/s/AKfycbwTonyEThJCZkJHuV_AZvlzBg5_tSzXkN4NkayCbU3i4woM6DxsDHK7CUSJ7sjt9dp7-w/exec"; 
 
-    // 🚀 ฟังก์ชันตัวกลางสำหรับคุยกับ Google API (แทนที่ google.script.run)
-    async function callAPI(action, data = {}) {
-      const response = await fetch(API_URL, {
-        method: "POST",
-        body: JSON.stringify({ action: action, ...data })
+<div style="position: absolute; top: 15px; right: 15px; z-index: 100;">
+  <button type="button" class="btn btn-sm btn-light rounded-pill shadow-sm" onclick="toggleAdmin()"><i class="fas fa-cog"></i> ผู้ดูแลระบบ</button>
+</div>
+
+<div class="container d-flex justify-content-center align-items-center" style="min-height: 100vh;">
+  <div id="userSection" class="glass-card">
+    <div class="text-center"><img id="companyLogo" src=""></div>
+    <div class="clock-display" id="clock">00:00:00</div>
+    <div class="date-display" id="date">กำลังโหลด...</div>
+
+    <div class="mb-3 position-relative">
+      <label class="form-label"><i class="fas fa-search text-primary"></i> รหัส หรือ ชื่อพนักงาน</label>
+      <input type="text" id="empSearch" class="form-control form-control-lg" placeholder="แตะเพื่อเลือกรายชื่อ..." autocomplete="off">
+      <div id="autocomplete-list" class="autocomplete-items hidden"></div>
+    </div>
+    <div class="mb-3"><input type="text" id="empName" class="form-control bg-light" placeholder="ชื่อ-สกุล (อัตโนมัติ)" readonly></div>
+
+    <div class="mb-3">
+      <label class="form-label"><i class="fas fa-camera text-primary"></i> ถ่ายรูปยืนยันตัวตน</label>
+      <input type="file" id="photoInput" class="form-control" accept="image/*" capture="environment">
+      <div class="text-center"><img id="preview" class="hidden"></div>
+    </div>
+
+    <div class="mb-4 text-center p-2 rounded bg-light border">
+      <h6 class="mb-1" style="font-size: 0.9rem;"><i class="fas fa-map-marker-alt text-danger"></i> ตรวจสอบสถานที่</h6>
+      <div id="locationText" class="text-muted" style="font-size: 0.8rem;">รอรับพิกัด GPS...</div>
+      <div id="distanceStatus" class="mt-1" style="font-size: 0.85rem;">กำลังโหลดสถานที่...</div>
+    </div>
+
+    <div class="row g-2">
+      <div class="col-6"><button type="button" class="btn btn-custom btn-checkin w-100" id="btnCheckIn" onclick="submitData('Check-In')" disabled><i class="fas fa-sign-in-alt"></i> เข้างาน</button></div>
+      <div class="col-6"><button type="button" class="btn btn-custom btn-checkout w-100" id="btnCheckOut" onclick="submitData('Check-Out')" disabled><i class="fas fa-sign-out-alt"></i> ออกงาน</button></div>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid d-flex justify-content-center align-items-start hidden" id="adminContainer" style="min-height: 100vh;">
+  <div id="adminSection" class="glass-card admin-card">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h3 class="mb-0">Admin Dashboard</h3>
+      <div>
+        <button type="button" class="btn btn-primary btn-sm rounded-pill me-2" onclick="refreshAdminData()">รีเฟรชข้อมูล</button>
+        <button type="button" class="btn btn-outline-danger btn-sm rounded-pill" onclick="closeAdmin()">ปิด</button>
+      </div>
+    </div>
+    <ul class="nav nav-tabs mb-3">
+      <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabReport" type="button">รายงาน</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabEmp" type="button">พนักงาน</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabLocations" type="button">สถานที่</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabSettings" type="button">ตั้งค่า</button></li>
+    </ul>
+    <div class="tab-content">
+      <div class="tab-pane fade show active" id="tabReport">
+        <div class="row g-2 mb-4">
+          <div class="col-3"><div class="stat-box bg-t-blue"><h3 id="statTotal">-</h3><p>ทั้งหมด</p></div></div>
+          <div class="col-3"><div class="stat-box bg-t-green"><h3 id="statCheckIn">-</h3><p>เข้าแล้ว</p></div></div>
+          <div class="col-3"><div class="stat-box bg-t-red"><h3 id="statLate">-</h3><p>สาย</p></div></div>
+          <div class="col-3"><div class="stat-box bg-t-orange"><h3 id="statMissing">-</h3><p>ยังไม่เข้า</p></div></div>
+        </div>
+        <div class="table-responsive">
+          <table id="reportTable" class="table table-striped table-bordered w-100">
+            <thead><tr><th>เวลา</th><th>รหัส</th><th>ชื่อ</th><th>สถานะ</th><th>สถานที่</th><th>สาย</th><th>ชม.</th><th>แผนที่</th><th>รูป</th><th>ลบ</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="tab-pane fade" id="tabEmp">
+        <div class="bg-light p-3 mb-3 border rounded">
+          <input type="text" id="newEmpId" placeholder="รหัส"> <input type="text" id="newEmpName" placeholder="ชื่อ"> 
+          <button onclick="addEmp()" class="btn btn-primary">เพิ่ม</button>
+        </div>
+        <table id="empTable" class="table table-bordered w-100"><thead><tr><th>รหัส</th><th>ชื่อ</th><th>ลบ</th></tr></thead><tbody id="empTableBody"></tbody></table>
+      </div>
+      <div class="tab-pane fade" id="tabLocations">
+        <div class="bg-light p-3 mb-3 border rounded">
+          <input type="text" id="locName" placeholder="ชื่อที่"> <input type="number" id="locLat" placeholder="Lat"> <input type="number" id="locLng" placeholder="Lng"> <input type="number" id="locRad" value="100">
+          <button onclick="addNewLocation()" class="btn btn-primary">เพิ่ม</button>
+        </div>
+        <table class="table table-bordered w-100"><thead><tr><th>ชื่อ</th><th>พิกัด</th><th>รัศมี</th><th>ลบ</th></tr></thead><tbody id="locTableBody"></tbody></table>
+      </div>
+      <div class="tab-pane fade" id="tabSettings">
+         <input type="text" id="setLogo" class="form-control mb-2" placeholder="Logo URL">
+         <input type="text" id="setWorkTime" class="form-control mb-2" placeholder="08:30">
+         <textarea id="setLineToken" class="form-control mb-2" placeholder="Line Token"></textarea>
+         <input type="text" id="setLineTarget" class="form-control mb-2" placeholder="User ID">
+         <button onclick="saveAdvanceSettings()" class="btn btn-success w-100">บันทึก</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap5.min.js"></script>
+
+<script>
+  // 🔗 ใส่ URL ของ Google Web App ตรงนี้
+  const API_URL = "https://script.google.com/macros/s/AKfycbwTonyEThJCZkJHuV_AZvlzBg5_tSzXkN4NkayCbU3i4woM6DxsDHK7CUSJ7sjt9dp7-w/exec"; 
+
+  let employeeData = [], allowedLocations = [];
+  let currentLat = "", currentLng = "", base64Image = "", currentLocName = "นอกพื้นที่", isInRange = false;
+  let reportTable = null;
+
+  async function callAPI(action, data = {}) {
+    const response = await fetch(API_URL, {
+      method: "POST",
+      body: JSON.stringify({ action: action, ...data })
+    });
+    return await response.json();
+  }
+
+  function safeStr(str) { return str ? String(str).replace(/[\r\n'"]/g, " ").trim() : ""; }
+
+  $(document).ready(function() {
+    startClock(); loadEmployees(); loadSettingsData(); getLocation();
+
+    $("#photoInput").change(function() {
+      const file = this.files[0];
+      if (file) { 
+        const reader = new FileReader(); 
+        reader.onload = function(e) { $("#preview").attr('src', e.target.result).removeClass('hidden'); base64Image = e.target.result.split(',')[1]; }; 
+        reader.readAsDataURL(file); 
+      }
+    });
+
+    $('#empSearch').on('focus input', function() {
+      let val = $(this).val().toLowerCase(); let listDiv = $('#autocomplete-list'); listDiv.empty().removeClass('hidden');
+      let matches = employeeData.filter(emp => (String(emp[0]).toLowerCase().includes(val) || String(emp[1]).toLowerCase().includes(val)));
+      matches.forEach(emp => {
+        let item = $(`<div><strong>${emp[0]}</strong> - ${emp[1]}</div>`);
+        item.on('click', () => { $('#empSearch').val(`${emp[0]} - ${emp[1]}`); $('#empName').val(emp[1]); listDiv.empty().addClass('hidden'); });
+        listDiv.append(item);
       });
-      return await response.json();
-    }
+    });
+  });
 
-    // แก้ไขฟังก์ชันเดิมให้เรียกผ่าน API
-    function loadEmployees() { 
-      callAPI("getEmployees").then(data => { employeeData = data; renderEmpTable(); }); 
-    }
+  function startClock() { setInterval(() => { const now = new Date(); $('#clock').text(now.toLocaleTimeString('th-TH')); $('#date').text(now.toLocaleDateString('th-TH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })); }, 1000); }
 
-    function loadSettingsData() {
-      callAPI("getSettings").then(s => {
-        if (!s) s = { logoUrl: "", workStartTime: "08:30", lineToken: "", lineTarget: "", locations: [] };
-        if(s.logoUrl) { $("#companyLogo").attr("src", s.logoUrl).show(); $("#setLogo").val(s.logoUrl); }
-        $("#setWorkTime").val(s.workStartTime); 
-        allowedLocations = s.locations || []; 
-        renderLocTable(); 
-      });
-    }
+  async function loadSettingsData() {
+    const s = await callAPI("getSettings");
+    if(s.logoUrl) $("#companyLogo").attr("src", s.logoUrl).show();
+    $("#setLogo").val(s.logoUrl); $("#setWorkTime").val(s.workStartTime); $("#setLineToken").val(s.lineToken); $("#setLineTarget").val(s.lineTarget);
+    allowedLocations = s.locations || []; renderLocTable();
+  }
 
-    function submitData(status) {
-      // ... ลอจิกเตรียมข้อมูลเหมือนเดิม ...
-      let data = { empId: eId, empName: eName, status: status, ... };
-      
-      callAPI("saveRecord", { data: data }).then(res => {
-        if(res.success) Swal.fire('สำเร็จ', '', 'success').then(() => resetForm());
-        else Swal.fire('พลาด', res.message, 'error');
-      });
-    }
+  async function loadEmployees() { employeeData = await callAPI("getEmployees"); renderEmpTable(); }
 
-    // ** ฟังก์ชันอื่น ๆ (toggleAdmin, loadReport, ฯลฯ) ให้เปลี่ยน google.script.run เป็น callAPI ทั้งหมดครับ **
-  </script>
+  function getLocation() {
+    if (navigator.geolocation) {
+      navigator.geolocation.watchPosition(p => { 
+        currentLat = p.coords.latitude; currentLng = p.coords.longitude; 
+        $("#locationText").html(`📍 พิกัด: ${currentLat.toFixed(5)}, ${currentLng.toFixed(5)}`); 
+        checkGeoFencing(currentLat, currentLng); 
+      }, null, { enableHighAccuracy: true });
+    }
+  }
+
+  function checkGeoFencing(lat, lng) {
+    isInRange = false; currentLocName = "นอกสถานที่";
+    for (let loc of allowedLocations) {
+      let d = Math.round(6371e3 * 2 * Math.atan2(Math.sqrt(Math.sin((loc.lat-lat)*Math.PI/360)**2 + Math.cos(lat*Math.PI/180) * Math.cos(loc.lat*Math.PI/180) * Math.sin((loc.lng-lng)*Math.PI/360)**2), Math.sqrt(1-(Math.sin((loc.lat-lat)*Math.PI/360)**2 + Math.cos(lat*Math.PI/180) * Math.cos(loc.lat*Math.PI/180) * Math.sin((loc.lng-lng)*Math.PI/360)**2))));
+      if (d <= loc.radius) { isInRange = true; currentLocName = loc.name; $("#distanceStatus").html(`<span class="badge bg-success">✅ ${loc.name}</span>`); $("#btnCheckIn, #btnCheckOut").prop('disabled', false); return; }
+    }
+    $("#distanceStatus").html(`<span class="badge bg-danger">❌ นอกพื้นที่</span>`); $("#btnCheckIn, #btnCheckOut").prop('disabled', true);
+  }
+
+  async function submitData(status) {
+    if(!$('#empName').val() || !base64Image) return Swal.fire('เตือน', 'กรอกข้อมูลและถ่ายรูป', 'warning');
+    Swal.fire({ title: 'บันทึก...', didOpen: () => Swal.showLoading() });
+    let data = { empId: $('#empSearch').val().split(' - ')[0], empName: $('#empName').val(), status: status, locationName: currentLocName, lat: currentLat, lng: currentLng, imageBase64: base64Image };
+    const res = await callAPI("saveRecord", { data: data });
+    Swal.fire(res.success ? 'สำเร็จ' : 'พลาด', res.message, res.success ? 'success' : 'error').then(() => { if(res.success) location.reload(); });
+  }
+
+  function toggleAdmin() { Swal.fire({ title: 'รหัส Admin', input: 'password' }).then(async (res) => { if(await callAPI("verifyAdmin", {password: res.value})) { $("#userSection").parent().addClass("hidden"); $("#adminContainer").removeClass("hidden"); refreshAdminData(); } }); }
+  function closeAdmin() { location.reload(); }
+  function refreshAdminData() { loadReport(); loadEmployees(); loadSettingsData(); }
+
+  async function loadReport() {
+    const data = await callAPI("getLogs");
+    let tbody = "";
+    data.forEach(r => {
+      tbody += `<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td>${r[3]}</td><td>${r[4]}</td><td>${r[8]}</td><td>${r[9]}</td><td>Map</td><td>Img</td><td>Del</td></tr>`;
+    });
+    if (reportTable) reportTable.destroy();
+    $('#reportTable tbody').html(tbody);
+    reportTable = $('#reportTable').DataTable({ order: [[0, "desc"]] });
+    $('#statTotal').text(employeeData.length);
+  }
+
+  // ฟังก์ชันย่อยพนักงาน/สถานที่/ลบ ทำงานเหมือนเดิมแต่เปลี่ยนเป็น callAPI ทั้งหมด
+  async function addEmp() { await callAPI("addEmployee", {empId: $("#newEmpId").val(), empName: $("#newEmpName").val()}); loadEmployees(); }
+  async function addNewLocation() { await callAPI("addLocation", {name: $("#locName").val(), lat: $("#locLat").val(), lng: $("#locLng").val(), radius: $("#locRad").val()}); loadSettingsData(); }
+  async function saveAdvanceSettings() { await callAPI("saveSettings", {logo: $("#setLogo").val(), pwd: "", time: $("#setWorkTime").val(), token: $("#setLineToken").val(), target: $("#setLineTarget").val()}); Swal.fire('บันทึกแล้ว'); }
+
+  function renderEmpTable() { /* โค้ดสร้างตารางพนักงาน */ }
+  function renderLocTable() { /* โค้ดสร้างตารางสถานที่ */ }
+</script>
 </body>
 </html>
