@@ -147,19 +147,29 @@
   // 🔗 ใส่ URL ของ Google Web App ตรงนี้
   const API_URL = "https://script.google.com/macros/s/AKfycbwTonyEThJCZkJHuV_AZvlzBg5_tSzXkN4NkayCbU3i4woM6DxsDHK7CUSJ7sjt9dp7-w/exec"; 
 
+
   let employeeData = [], allowedLocations = [];
   let currentLat = "", currentLng = "", base64Image = "", currentLocName = "นอกพื้นที่", isInRange = false;
-  let reportTable = null;
+  let reportTable = null, empTable = null;
 
   async function callAPI(action, data = {}) {
-    const response = await fetch(API_URL, {
-      method: "POST",
-      body: JSON.stringify({ action: action, ...data })
-    });
-    return await response.json();
+    try {
+      const response = await fetch(API_URL, { method: "POST", body: JSON.stringify({ action: action, ...data }) });
+      return await response.json();
+    } catch(e) {
+      console.error("API Error:", e);
+      return null;
+    }
   }
 
   function safeStr(str) { return str ? String(str).replace(/[\r\n'"]/g, " ").trim() : ""; }
+
+  function getDriveImageSrc(url) {
+    if (!url) return '';
+    let fileIdMatch = url.match(/[-\w]{25,}/);
+    if (fileIdMatch) return "https://lh3.googleusercontent.com/d/" + fileIdMatch[0];
+    return url;
+  }
 
   $(document).ready(function() {
     startClock(); loadEmployees(); loadSettingsData(); getLocation();
@@ -188,63 +198,141 @@
 
   async function loadSettingsData() {
     const s = await callAPI("getSettings");
+    if(!s) return;
     if(s.logoUrl) $("#companyLogo").attr("src", s.logoUrl).show();
     $("#setLogo").val(s.logoUrl); $("#setWorkTime").val(s.workStartTime); $("#setLineToken").val(s.lineToken); $("#setLineTarget").val(s.lineTarget);
     allowedLocations = s.locations || []; renderLocTable();
   }
 
-  async function loadEmployees() { employeeData = await callAPI("getEmployees"); renderEmpTable(); }
+  async function loadEmployees() { 
+    const data = await callAPI("getEmployees"); 
+    if(data) { employeeData = data; renderEmpTable(); }
+  }
 
+  // 🚀 ปรับปรุงระบบ GPS ให้ดึงเร็วขึ้น โดยลดความแม่นยำลงนิดหน่อยเพื่อแลกกับความเร็ว
   function getLocation() {
     if (navigator.geolocation) {
       navigator.geolocation.watchPosition(p => { 
         currentLat = p.coords.latitude; currentLng = p.coords.longitude; 
-        $("#locationText").html(`📍 พิกัด: ${currentLat.toFixed(5)}, ${currentLng.toFixed(5)}`); 
+        $("#locationText").html(`📍 พิกัดคุณ: ${currentLat.toFixed(5)}, ${currentLng.toFixed(5)}`); 
         checkGeoFencing(currentLat, currentLng); 
-      }, null, { enableHighAccuracy: true });
+      }, e => {
+        $("#locationText").html(`<span class="text-danger">❌ ไม่สามารถดึงพิกัดได้ (โปรดเปิด GPS)</span>`);
+      }, { enableHighAccuracy: false, timeout: 10000, maximumAge: 0 }); // ปิด HighAccuracy เพื่อให้จับสัญญาณไวขึ้น
     }
+  }
+
+  function calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371e3; const a = Math.sin((lat2-lat1)*Math.PI/360)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin((lon2-lon1)*Math.PI/360)**2;
+    return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
   }
 
   function checkGeoFencing(lat, lng) {
-    isInRange = false; currentLocName = "นอกสถานที่";
+    if (allowedLocations.length === 0) { $("#distanceStatus").html('<span class="badge bg-warning text-dark">⚠️ ยังไม่ตั้งสถานที่</span>'); return; }
+    isInRange = false; currentLocName = "นอกสถานที่"; let closestDist = Infinity;
     for (let loc of allowedLocations) {
-      let d = Math.round(6371e3 * 2 * Math.atan2(Math.sqrt(Math.sin((loc.lat-lat)*Math.PI/360)**2 + Math.cos(lat*Math.PI/180) * Math.cos(loc.lat*Math.PI/180) * Math.sin((loc.lng-lng)*Math.PI/360)**2), Math.sqrt(1-(Math.sin((loc.lat-lat)*Math.PI/360)**2 + Math.cos(lat*Math.PI/180) * Math.cos(loc.lat*Math.PI/180) * Math.sin((loc.lng-lng)*Math.PI/360)**2))));
-      if (d <= loc.radius) { isInRange = true; currentLocName = loc.name; $("#distanceStatus").html(`<span class="badge bg-success">✅ ${loc.name}</span>`); $("#btnCheckIn, #btnCheckOut").prop('disabled', false); return; }
+      let d = calculateDistance(lat, lng, loc.lat, loc.lng);
+      if (d <= loc.radius) { isInRange = true; currentLocName = safeStr(loc.name); $("#distanceStatus").html(`<span class="badge bg-success">✅ ${currentLocName} (ห่าง ${d}ม.)</span>`); $("#btnCheckIn, #btnCheckOut").prop('disabled', false); return; }
+      if (d < closestDist) closestDist = d;
     }
-    $("#distanceStatus").html(`<span class="badge bg-danger">❌ นอกพื้นที่</span>`); $("#btnCheckIn, #btnCheckOut").prop('disabled', true);
+    $("#distanceStatus").html(`<span class="badge bg-danger">❌ นอกพื้นที่ (ใกล้สุด ${closestDist}ม.)</span>`); $("#btnCheckIn, #btnCheckOut").prop('disabled', true);
   }
 
   async function submitData(status) {
-    if(!$('#empName').val() || !base64Image) return Swal.fire('เตือน', 'กรอกข้อมูลและถ่ายรูป', 'warning');
-    Swal.fire({ title: 'บันทึก...', didOpen: () => Swal.showLoading() });
+    if(!$('#empName').val() || !base64Image) return Swal.fire('เตือน', 'กรอกข้อมูลและถ่ายรูปให้ครบถ้วน', 'warning');
+    Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     let data = { empId: $('#empSearch').val().split(' - ')[0], empName: $('#empName').val(), status: status, locationName: currentLocName, lat: currentLat, lng: currentLng, imageBase64: base64Image };
     const res = await callAPI("saveRecord", { data: data });
-    Swal.fire(res.success ? 'สำเร็จ' : 'พลาด', res.message, res.success ? 'success' : 'error').then(() => { if(res.success) location.reload(); });
+    if(res && res.success) {
+      Swal.fire('สำเร็จ!', status==='Check-In'?'เข้างานเรียบร้อย':'เลิกงานแล้วเดินทางปลอดภัย', 'success').then(() => { $('#empSearch').val(''); $('#empName').val(''); $('#photoInput').val(''); $('#preview').addClass('hidden'); base64Image = ""; });
+    } else { Swal.fire('ผิดพลาด', res ? res.message : 'ไม่สามารถติดต่อเซิร์ฟเวอร์ได้', 'error'); }
   }
 
-  function toggleAdmin() { Swal.fire({ title: 'รหัส Admin', input: 'password' }).then(async (res) => { if(await callAPI("verifyAdmin", {password: res.value})) { $("#userSection").parent().addClass("hidden"); $("#adminContainer").removeClass("hidden"); refreshAdminData(); } }); }
+  function toggleAdmin() { Swal.fire({ title: 'รหัส Admin', input: 'password' }).then(async (res) => { if(res.isConfirmed) { Swal.fire({title:'กำลังตรวจสอบ...', didOpen:()=>Swal.showLoading()}); if(await callAPI("verifyAdmin", {password: res.value})) { Swal.close(); $("#userSection").closest('.container').addClass("hidden"); $("#adminContainer").removeClass("hidden"); refreshAdminData(); } else { Swal.fire('ผิดพลาด', 'รหัสผ่านผิด', 'error'); } } }); }
   function closeAdmin() { location.reload(); }
   function refreshAdminData() { loadReport(); loadEmployees(); loadSettingsData(); }
 
-  async function loadReport() {
-    const data = await callAPI("getLogs");
-    let tbody = "";
+  // 🛠️ ซ่อมระบบคำนวณสถิติ Dashboard (-) ให้กลับมาทำงาน
+  function updateDashboard(data) {
+    if (!data) return;
+    let today = new Date();
+    let totalE = employeeData ? employeeData.length : 0;
+    let checkedInSet = new Set();
+    let lateCount = 0;
+
     data.forEach(r => {
-      tbody += `<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td>${r[3]}</td><td>${r[4]}</td><td>${r[8]}</td><td>${r[9]}</td><td>Map</td><td>Img</td><td>Del</td></tr>`;
+      if(r && r[0]) {
+        let dateParts = String(r[0]).split(',')[0].split(' ')[0].split('/'); 
+        if(dateParts.length >= 3) {
+          let d = parseInt(dateParts[0]), m = parseInt(dateParts[1]), y = parseInt(dateParts[2]);
+          if(d === today.getDate() && m === (today.getMonth()+1) && y === today.getFullYear()) {
+            if (r[3] === 'Check-In') {
+              checkedInSet.add(r[1]);
+              if (r[8] !== 'ปกติ' && r[8] !== '-' && r[8] !== '') lateCount++;
+            }
+          }
+        }
+      }
     });
-    if (reportTable) reportTable.destroy();
-    $('#reportTable tbody').html(tbody);
-    reportTable = $('#reportTable').DataTable({ order: [[0, "desc"]] });
-    $('#statTotal').text(employeeData.length);
+
+    $('#statTotal').text(totalE);
+    $('#statCheckIn').text(checkedInSet.size);
+    $('#statLate').text(lateCount);
+    $('#statMissing').text(Math.max(0, totalE - checkedInSet.size));
   }
 
-  // ฟังก์ชันย่อยพนักงาน/สถานที่/ลบ ทำงานเหมือนเดิมแต่เปลี่ยนเป็น callAPI ทั้งหมด
-  async function addEmp() { await callAPI("addEmployee", {empId: $("#newEmpId").val(), empName: $("#newEmpName").val()}); loadEmployees(); }
-  async function addNewLocation() { await callAPI("addLocation", {name: $("#locName").val(), lat: $("#locLat").val(), lng: $("#locLng").val(), radius: $("#locRad").val()}); loadSettingsData(); }
-  async function saveAdvanceSettings() { await callAPI("saveSettings", {logo: $("#setLogo").val(), pwd: "", time: $("#setWorkTime").val(), token: $("#setLineToken").val(), target: $("#setLineTarget").val()}); Swal.fire('บันทึกแล้ว'); }
+  // 🛠️ ซ่อมตารางรายงานให้แสดงแผนที่, รูปภาพ และปุ่มลบได้สวยงามเหมือนเดิม
+  async function loadReport() {
+    Swal.fire({ title: 'กำลังดึงข้อมูล...', didOpen: () => Swal.showLoading() });
+    const data = await callAPI("getLogs");
+    if(data) updateDashboard(data);
+    
+    let tbody = "";
+    (data || []).forEach(r => {
+      let isLate = r[8] === "ปกติ" ? '<span class="badge bg-success">ปกติ</span>' : (r[8] && r[8] !== "-" ? '<span class="badge bg-danger">' + safeStr(r[8]) + '</span>' : "-");
+      let mapL = `<a href="http://maps.google.com/?q=${safeStr(r[5])},${safeStr(r[6])}" target="_blank" class="btn btn-sm btn-info text-white py-0"><i class="fas fa-map-marker-alt"></i></a>`;
+      let imgL = r[7] ? `<a href="${safeStr(r[7])}" target="_blank"><img src="${getDriveImageSrc(safeStr(r[7]))}" class="table-img" alt="รูป"></a>` : '-';
+      let delB = `<button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="deleteLog('${r[10] || r[0]}', '${safeStr(r[1])}')"><i class="fas fa-trash"></i></button>`;
+      
+      tbody += `<tr><td>${safeStr(r[0])}</td><td>${safeStr(r[1])}</td><td>${safeStr(r[2])}</td><td><span class="badge ${r[3]==='Check-In'?'bg-success':'bg-danger'}">${safeStr(r[3])}</span></td><td><b>${safeStr(r[4])}</b></td><td>${isLate}</td><td><b class="text-primary">${safeStr(r[9]||'-')}</b></td><td>${mapL}</td><td>${imgL}</td><td>${delB}</td></tr>`;
+    });
+    
+    if (reportTable) reportTable.destroy();
+    $('#reportTable tbody').html(tbody);
+    reportTable = $('#reportTable').DataTable({ lengthMenu: [[10, 30, 50, 100, -1], [10, 30, 50, 100, "ทั้งหมด"]], order: [[0, "desc"]] });
+    Swal.close();
+  }
 
-  function renderEmpTable() { /* โค้ดสร้างตารางพนักงาน */ }
-  function renderLocTable() { /* โค้ดสร้างตารางสถานที่ */ }
+  async function deleteLog(ts, eid) { Swal.fire({ title: 'ลบประวัตินี้?', icon: 'warning', showCancelButton: true }).then(async (res) => { if(res.isConfirmed) { await callAPI("deleteLog", {ts:ts, eid:eid}); loadReport(); } }); }
+
+  // 🛠️ เติมเต็มตารางพนักงานให้สมบูรณ์
+  function renderEmpTable() {
+    let html = ""; if (empTable) empTable.destroy();
+    employeeData.forEach(e => { html += `<tr><td>${safeStr(e[0])}</td><td>${safeStr(e[1])}</td><td><button class="btn btn-sm btn-danger py-0" onclick="delEmp('${safeStr(e[0])}','${safeStr(e[1])}')"><i class="fas fa-trash"></i></button></td></tr>`; });
+    $("#empTableBody").html(html);
+    empTable = $('#empTable').DataTable({ lengthMenu: [[10, 30, 50, -1], [10, 30, 50, "ทั้งหมด"]] });
+  }
+
+  // 🛠️ เติมเต็มตารางสถานที่ให้สมบูรณ์
+  function renderLocTable() {
+    let html = "";
+    allowedLocations.forEach(l => { html += `<tr><td>${safeStr(l.name)}</td><td><small>${l.lat}, ${l.lng}</small></td><td>${l.radius} ม.</td><td><button class="btn btn-sm btn-danger py-0" onclick="delLoc('${safeStr(l.name)}')"><i class="fas fa-trash"></i></button></td></tr>`; });
+    $("#locTableBody").html(html);
+  }
+
+  async function addEmp() { if(!$("#newEmpId").val() || !$("#newEmpName").val()) return; Swal.fire({title:'เพิ่ม...', didOpen:()=>Swal.showLoading()}); await callAPI("addEmployee", {empId: $("#newEmpId").val(), empName: $("#newEmpName").val()}); Swal.fire('สำเร็จ','','success'); $("#newEmpId").val(''); $("#newEmpName").val(''); loadEmployees(); }
+  async function delEmp(id, name) { Swal.fire({ title: 'ลบ '+name+'?', showCancelButton: true }).then(async (res) => { if(res.isConfirmed) { await callAPI("deleteEmployee", {empId:id}); loadEmployees(); } }); }
+  async function addNewLocation() { if(!$("#locName").val() || !$("#locLat").val()) return; Swal.fire({title:'เพิ่ม...', didOpen:()=>Swal.showLoading()}); await callAPI("addLocation", {name: $("#locName").val(), lat: $("#locLat").val(), lng: $("#locLng").val(), radius: $("#locRad").val()}); Swal.fire('สำเร็จ','','success'); $("#locName").val(''); $("#locLat").val(''); $("#locLng").val(''); loadSettingsData(); }
+  async function delLoc(name) { Swal.fire({ title: 'ลบสถานที่?', showCancelButton: true }).then(async (res) => { if(res.isConfirmed) { await callAPI("deleteLocation", {name:name}); loadSettingsData(); } }); }
+  async function saveAdvanceSettings() { Swal.fire({title:'บันทึก...', didOpen:()=>Swal.showLoading()}); await callAPI("saveSettings", {logo: $("#setLogo").val(), pwd: $("#setAdminPwd").val(), time: $("#setWorkTime").val(), token: $("#setLineToken").val(), target: $("#setLineTarget").val()}); Swal.fire('สำเร็จ','','success'); $("#setAdminPwd").val(''); loadSettingsData(); }
+  
+  // 🛠️ ปุ่มทดสอบ LINE ในหน้าตั้งค่า
+  async function testLine() {
+    if(!$("#setLineToken").val() || !$("#setLineTarget").val()) return Swal.fire('พลาด', 'ใส่ Token และ ID ก่อน', 'warning');
+    Swal.fire({ title: 'กำลังทดสอบ...', didOpen: () => Swal.showLoading() });
+    await callAPI("saveRecord", { data: { empId: "TEST", empName: "ผู้ดูแลระบบ", status: "Check-In", locationName: "ทดสอบ", lat: "0", lng: "0", imageBase64: "" } });
+    Swal.fire('สำเร็จ', 'ตรวจสอบข้อความใน LINE', 'success');
+  }
 </script>
 </body>
 </html>
