@@ -57,19 +57,10 @@
     </div>
 
     <div id="cameraContainer" class="position-relative mx-auto shadow-sm hidden" style="max-width: 300px; border-radius: 15px; overflow: hidden; border: 2px solid #ddd; background: #000; margin-bottom: 15px;">
-      
-      <div id="videoWrapper" style="width: 100%; height: 220px; position: relative;">
-        <video id="cameraStream" autoplay playsinline style="width: 100%; height: 100%; display: block; object-fit: cover;"></video>
-        <button type="button" class="btn btn-primary position-absolute bottom-0 start-50 translate-middle-x mb-3 rounded-pill px-4 shadow" onclick="takePhoto()">
-          <i class="fas fa-camera"></i> ถ่ายรูป
-        </button>
-      </div>
-
-      <div id="fallbackWrapper" class="hidden d-flex flex-column justify-content-center align-items-center" style="width: 100%; height: 220px; background: #f8f9fa;">
-        <p class="text-danger small mb-3 fw-bold"><i class="fas fa-camera"></i> แตะช่องด้านล่างเพื่อถ่ายรูป</p>
-        <input type="file" id="fallbackPhotoInput" accept="image/*" capture="environment" class="form-control shadow-sm" style="width: 85%; padding: 10px;" onchange="handleFallbackPhoto(event)">
-      </div>
-
+      <video id="cameraStream" autoplay playsinline style="width: 100%; height: 220px; display: block; object-fit: cover;"></video>
+      <button type="button" class="btn btn-primary position-absolute bottom-0 start-50 translate-middle-x mb-3 rounded-pill px-4 shadow" onclick="takePhoto()">
+        <i class="fas fa-camera"></i> ถ่ายรูป
+      </button>
     </div>
 
     <div id="previewContainer" class="hidden text-center mb-3">
@@ -202,25 +193,19 @@
 <script src="https://cdn.datatables.net/buttons/2.3.6/js/buttons.html5.min.js"></script>
 
 <script>
-  // 🔗 1. แก้ไข URL API ของคุณตรงนี้ (ห้ามลืมเปลี่ยนเด็ดขาด)
+  // 🔗 1. แก้ไข URL API ของคุณตรงนี้
   const API_URL = "https://script.google.com/macros/s/AKfycbyl4pjwAszaeJ7GodtY9anJkip6uGrXxj8GWVxYYf_5PF_FB1DnFRWbqDWBGOxSVJNeEQ/exec";
 
   let employeeData = [], allowedLocations = [], currentLat = "", currentLng = "", base64Image = "";
   let reportTable = null;
 
-  // 🟢 ฟังก์ชันเชื่อมต่อ API (ดักจับ Error แจ้งเตือนซ้ำได้แม่นยำ)
   async function callAPI(action, payload = {}) {
     try {
       const res = await fetch(API_URL, { method: "POST", body: JSON.stringify({ action: action, data: payload }) });
       const json = await res.json();
       
-      // ดัก Error การเชื่อมต่อ
       if (!json.success) throw new Error(json.message || "เกิดข้อผิดพลาดในการเชื่อมต่อ");
-      
-      // ดัก Error จาก Apps Script (เช่น คุณได้บันทึกเวลาไปแล้ว)
-      if (json.data && json.data.success === false) {
-        throw new Error(json.data.message); 
-      }
+      if (json.data && json.data.success === false) throw new Error(json.data.message); 
       
       return json.data;
     } catch (e) { 
@@ -241,29 +226,19 @@
     getLocation(); 
   }
 
+  // 🟢 ฟังก์ชันเปิดกล้อง (ดักจับ Error ถ้าเบราว์เซอร์ไม่ให้สิทธิ์)
   function startCamera() {
     const v = document.getElementById('cameraStream');
-    const videoWrapper = document.getElementById('videoWrapper');
-    const fallbackWrapper = document.getElementById('fallbackWrapper');
-    
     $('#cameraContainer').removeClass('hidden');
     
-    const isLineApp = /Line/i.test(navigator.userAgent);
-
-    if (!isLineApp && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
       navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false })
-        .then(s => { 
-          v.srcObject = s; 
-          videoWrapper.classList.remove('hidden');
-          fallbackWrapper.classList.add('hidden');
-        })
+        .then(s => { v.srcObject = s; })
         .catch(err => { 
-          videoWrapper.classList.add('hidden');
-          fallbackWrapper.classList.remove('hidden');
+          Swal.fire('ข้อผิดพลาด', 'ไม่สามารถเปิดกล้องได้ กรุณาตรวจสอบสิทธิ์การใช้งานกล้องในเบราว์เซอร์ของคุณ', 'error');
         });
     } else {
-      videoWrapper.classList.add('hidden');
-      fallbackWrapper.classList.remove('hidden');
+      Swal.fire('ข้อผิดพลาด', 'เบราว์เซอร์ของคุณไม่รองรับการใช้งานกล้อง', 'error');
     }
   }
 
@@ -279,29 +254,34 @@
     $('#cameraContainer').addClass('hidden'); $('#previewContainer').removeClass('hidden');
   }
 
-  function handleFallbackPhoto(event) {
-    const file = event.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        const dataUrl = e.target.result;
-        base64Image = dataUrl.split(',')[1];
-        document.getElementById('preview').src = dataUrl;
-        $('#cameraContainer').addClass('hidden');
-        $('#previewContainer').removeClass('hidden');
-      };
-      reader.readAsDataURL(file);
-    }
-  }
-
   function retakePhoto() { 
     base64Image = ""; 
-    $('#fallbackPhotoInput').val(''); 
     $('#previewContainer').addClass('hidden'); 
     $('#cameraContainer').removeClass('hidden'); 
   }
 
   $(document).ready(async function() {
+    
+    // 🟢 ดักจับแอป LINE ทันทีที่โหลดหน้าเว็บ และโชว์วิธีเปิดเบราว์เซอร์อื่น
+    const isLineApp = /Line/i.test(navigator.userAgent);
+    if (isLineApp) {
+      $('#userContainer').addClass('hidden');
+      $('body').css('background', '#f4f6f9').prepend(`
+        <div id="lineWarning" class="container d-flex justify-content-center align-items-center" style="min-height: 100vh; position: absolute; z-index: 9999; left: 0; right: 0;">
+          <div class="glass-card text-center p-4 shadow-lg" style="border: 2px solid #00c300; background: white;">
+            <i class="fas fa-external-link-alt text-success mb-3" style="font-size: 4rem;"></i>
+            <h4 class="fw-bold text-dark mt-2">เปิดในเบราว์เซอร์เริ่มต้น</h4>
+            <div class="mt-4 mb-3 text-start bg-light p-3 rounded border">
+              <p class="mb-2 text-muted" style="font-size: 1rem;">1. กดปุ่ม <strong>จุด 3 จุด <i class="fas fa-ellipsis-v"></i> หรือ <i class="fas fa-ellipsis-h"></i></strong> ที่มุมขวาบน หรือมุมขวาล่างของจอ</p>
+              <p class="mb-0 text-muted" style="font-size: 1rem;">2. เลือกเมนู <strong class="text-success">"เปิดด้วยเบราว์เซอร์อื่น"</strong> <br><small>(Open in default browser)</small></p>
+            </div>
+            <p class="small text-danger fw-bold mt-2">** แอป LINE ไม่รองรับการเปิดกล้องโดยตรง ระบบจะทำงานได้เมื่อเปิดผ่าน Safari หรือ Chrome เท่านั้น **</p>
+          </div>
+        </div>
+      `);
+      return; // หยุดทำงานโค้ดส่วนที่เหลือ เพื่อบังคับให้ออกไปเปิดเว็บข้างนอก
+    }
+
     setInterval(() => { const n = new Date(); $('#clock').text(n.toLocaleTimeString('th-TH')); $('#date').text(n.toLocaleDateString('th-TH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })); }, 1000);
     
     try {
@@ -346,11 +326,10 @@
       $("#locationText").html(`📍 พิกัด: ${currentLat.toFixed(5)}, ${currentLng.toFixed(5)}`);
       checkGeo(currentLat, currentLng);
     }, e => {
-      $("#locationText").html(`<span class="text-danger">❌ ค้นหาพิกัดไม่พบ หรือถูกบล็อก</span>`);
+      $("#locationText").html(`<span class="text-danger">❌ ค้นหาพิกัดไม่พบ หรือถูกบล็อก GPS</span>`);
     }, { enableHighAccuracy: true });
   }
 
-  // 🟢 คำนวณระยะห่างให้โชว์ (ห่าง XX ม.) หรือ (ใกล้สุด XX ม.)
   function checkGeo(lat, lng) {
     if(allowedLocations.length === 0) return;
     let ok = false, locName = "นอกพื้นที่";
@@ -372,20 +351,17 @@
     $("#btnCheckIn, #btnCheckOut").prop('disabled', !ok);
   }
 
-  // 🟢 ส่งข้อมูล พร้อมระบบ Popup ยืนยันเพื่อกันกดผิด
+  // 🟢 ส่งข้อมูล พร้อมระบบ Popup ยืนยันป้องกันกดผิด
   async function submitData(status) {
     if(!$('#empName').val() || !base64Image) return Swal.fire('เตือน', 'กรอกข้อมูลและถ่ายรูปให้ครบ', 'warning');
     
-    // ดึงเฉพาะชื่อสถานที่ส่งไป Google Sheets (ตัดคำว่า ห่าง XX ม. ออก)
     let rawLocText = $("#distanceStatus").text();
     let cleanLocName = rawLocText.replace(/✅ |❌ /,'').split(' (ห่าง')[0].trim();
     cleanLocName = cleanLocName.split(' (ใกล้สุด')[0].trim();
 
-    // กำหนดข้อความและสีปุ่มตามสถานะ
     let actionText = status === "Check-In" ? "เข้างาน" : "ออกงาน";
     let btnColor = status === "Check-In" ? "#11998e" : "#cb2d3e";
 
-    // เรียก Popup ยืนยันก่อนทำงานจริง
     const confirmAction = await Swal.fire({
       title: `ยืนยันการ${actionText}?`,
       text: `คุณกำลังจะบันทึกเวลา "${actionText}" ใช่หรือไม่?`,
@@ -397,7 +373,6 @@
       cancelButtonText: 'ยกเลิก'
     });
 
-    // ถ้าเปลี่ยนใจกดยกเลิก ให้หยุดการทำงาน
     if (!confirmAction.isConfirmed) return;
 
     Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
@@ -411,12 +386,10 @@
         retakePhoto(); 
       });
     } catch(e) {
-      // โชว์ข้อความเตือนเมื่อลงเวลาซ้ำ!
       Swal.fire('แจ้งเตือน', e.message, 'warning');
     }
   }
 
-  // Admin Functions
   async function toggleAdmin() {
     const { value: pwd } = await Swal.fire({ title: 'รหัส Admin', input: 'password' });
     if(pwd) {
@@ -464,7 +437,7 @@
         }
 
         let lateBadge = r[8] === "ปกติ" ? '<span class="badge bg-success">ปกติ</span>' : (r[8] && r[8] !== "-" ? '<span class="badge bg-danger">' + r[8] + '</span>' : "-");
-        let mapLink = `<a href="http://googleusercontent.com/maps.google.com/5${r[5]},${r[6]}" target="_blank" class="btn btn-sm btn-info text-white py-0"><i class="fas fa-map-marker-alt"></i></a>`;
+        let mapLink = `<a href="http://googleusercontent.com/maps.google.com/4${r[5]},${r[6]}" target="_blank" class="btn btn-sm btn-info text-white py-0"><i class="fas fa-map-marker-alt"></i></a>`;
         let imgLink = r[7] ? `<a href="${r[7]}" target="_blank"><img src="${getDriveImageSrc(r[7])}" class="table-img" alt="รูป"></a>` : '-';
         
         tbody += `<tr>
