@@ -20,12 +20,13 @@
     .admin-card { max-width: 96% !important; margin-top: 30px; margin-bottom: 30px; }
     .clock-display { font-size: 2.5rem; font-weight: 600; text-align: center; color: #182848; margin-bottom: 0; }
     .date-display { text-align: center; color: #666; margin-bottom: 1.5rem; font-size: 0.9rem; }
-    .btn-custom { border-radius: 50px; font-weight: 600; padding: 14px; color: white; border: none; font-size: 1.1rem; width: 100%; }
+    .btn-custom { border-radius: 50px; font-weight: 600; padding: 14px; color: white; border: none; font-size: 1.1rem; width: 100%; transition: 0.3s; }
+    .btn-custom:active { transform: scale(0.95); }
     .btn-checkin { background: linear-gradient(135deg, #11998e, #38ef7d); }
     .btn-checkout { background: linear-gradient(135deg, #cb2d3e, #ef473a); }
     .hidden { display: none !important; }
     #companyLogo { max-height: 80px; max-width: 100%; object-fit: contain; margin-bottom: 10px; display: none; }
-    .autocomplete-items { position: absolute; border: 1px solid #d4d4d4; z-index: 99; top: 100%; left: 0; right: 0; max-height: 200px; overflow-y: auto; background: #fff; border-radius: 0 0 10px 10px; }
+    .autocomplete-items { position: absolute; border: 1px solid #d4d4d4; z-index: 99; top: 100%; left: 0; right: 0; max-height: 200px; overflow-y: auto; background: #fff; border-radius: 0 0 10px 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
     .autocomplete-items div { padding: 12px; cursor: pointer; border-bottom: 1px solid #eee; }
     .autocomplete-items div:hover { background-color: #e9e9e9; }
     .stat-box { padding: 15px; border-radius: 15px; text-align: center; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 10px; }
@@ -56,12 +57,21 @@
 
     <div class="mb-3 text-center">
       <label class="form-label text-primary fw-bold"><i class="fas fa-camera"></i> ถ่ายรูปยืนยันตัวตน</label>
-      <div id="cameraContainer" class="position-relative mx-auto shadow-sm" style="max-width: 300px; border-radius: 15px; overflow: hidden; border: 2px solid #ddd; background: #000;">
+      
+      <div id="initScreen" class="mb-3">
+        <button type="button" class="btn btn-warning btn-lg rounded-pill px-4 shadow-sm" onclick="initSystem()">
+          <i class="fas fa-power-off"></i> แตะเพื่อเปิดกล้อง & GPS
+        </button>
+        <p class="text-muted small mt-2">ระบบความปลอดภัยต้องการให้คุณแตะเพื่อขออนุญาต</p>
+      </div>
+
+      <div id="cameraContainer" class="position-relative mx-auto shadow-sm hidden" style="max-width: 300px; border-radius: 15px; overflow: hidden; border: 2px solid #ddd; background: #000;">
         <video id="cameraStream" autoplay playsinline style="width: 100%; height: 220px; display: block; object-fit: cover;"></video>
         <button type="button" class="btn btn-primary position-absolute bottom-0 start-50 translate-middle-x mb-2 rounded-pill px-4 shadow" onclick="takePhoto()">
           <i class="fas fa-camera"></i> ถ่ายรูป
         </button>
       </div>
+      
       <div id="previewContainer" class="hidden mx-auto" style="max-width: 300px;">
         <img id="preview" style="width: 100%; border-radius: 15px; border: 2px solid #11998e; object-fit: cover;">
         <button type="button" class="btn btn-outline-danger btn-sm mt-2 rounded-pill px-4" onclick="retakePhoto()"><i class="fas fa-redo"></i> ถ่ายใหม่</button>
@@ -71,8 +81,8 @@
 
     <div class="mb-4 text-center p-2 rounded bg-light border">
       <h6 class="mb-1 text-danger"><i class="fas fa-map-marker-alt"></i> สถานที่เช็คอิน</h6>
-      <div id="locationText" class="text-muted small">กำลังเตรียม GPS...</div>
-      <div id="distanceStatus" class="mt-1 small"><span class="badge bg-secondary">กำลังโหลดข้อมูล...</span></div>
+      <div id="locationText" class="text-muted small">รอการเปิดระบบ GPS...</div>
+      <div id="distanceStatus" class="mt-1 small"><span class="badge bg-secondary">กรุณาแตะปุ่มด้านบน</span></div>
     </div>
 
     <div class="row g-2">
@@ -94,7 +104,7 @@
   let currentLat = "", currentLng = "", base64Image = "", currentLocName = "นอกพื้นที่", isInRange = false;
   let isSettingsLoaded = false, cameraStreamObj = null;
 
-  // 🚀 ฟังก์ชันหลักสำหรับเรียก API จาก Google
+  // 🚀 ฟังก์ชันหลักสำหรับเรียก API จาก Google Apps Script
   async function callAPI(action, payload = {}) {
     try {
       const response = await fetch(API_URL, {
@@ -108,6 +118,56 @@
       console.error("API Error:", err);
       throw err;
     }
+  }
+
+  // 🌟 เริ่มต้นการทำงานของเว็บ (ยังไม่เปิดกล้อง/GPS ทันที)
+  $(document).ready(async function() {
+    startClock();
+    
+    try {
+      // ดึงการตั้งค่าสถานที่และโลโก้จาก Google Sheets
+      const s = await callAPI("getSettings");
+      if(s.logoUrl) { $("#companyLogo").attr("src", s.logoUrl).show(); }
+      allowedLocations = s.locations || [];
+      isSettingsLoaded = true;
+      
+      // ดึงรายชื่อพนักงาน
+      employeeData = await callAPI("getEmployees");
+    } catch(e) {
+      console.error("ไม่สามารถโหลดข้อมูลเบื้องต้นได้:", e);
+    }
+
+    // ระบบค้นหาพนักงาน (Autocomplete)
+    $('#empSearch').on('input', function() {
+      let val = $(this).val().toLowerCase(); let listDiv = $('#autocomplete-list'); listDiv.empty().removeClass('hidden');
+      if(!val) return;
+      let matches = employeeData.filter(emp => String(emp[0]).toLowerCase().includes(val) || String(emp[1]).toLowerCase().includes(val)).slice(0, 10);
+      matches.forEach(emp => {
+        let item = $(`<div><strong>${emp[0]}</strong> - ${emp[1]}</div>`);
+        item.on('click', () => { $('#empSearch').val(`${emp[0]} - ${emp[1]}`); $('#empName').val(emp[1]); listDiv.addClass('hidden'); });
+        listDiv.append(item);
+      });
+    });
+    $(document).click(e => { if(!$(e.target).closest('#empSearch, #autocomplete-list').length) $('#autocomplete-list').addClass('hidden'); });
+  });
+
+  function startClock() {
+    setInterval(() => {
+      const now = new Date(); $('#clock').text(now.toLocaleTimeString('th-TH'));
+      $('#date').text(now.toLocaleDateString('th-TH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }));
+    }, 1000);
+  }
+
+  // 🚀 ฟังก์ชันเริ่มระบบเมื่อผู้ใช้แตะปุ่ม "แตะเพื่อเปิดกล้อง & GPS"
+  function initSystem() {
+    // ซ่อนหน้าต่างเริ่มต้น และแสดงกล้อง
+    $('#initScreen').addClass('hidden');
+    $('#cameraContainer').removeClass('hidden');
+    $("#locationText").html(`<span class="text-info">กำลังขอสิทธิ์และค้นหาพิกัด GPS...</span>`);
+    
+    // เรียกใช้งานกล้องและ GPS
+    startCamera();
+    getLocation();
   }
 
   // 📸 ระบบกล้องสด
@@ -140,47 +200,6 @@
     $('#cameraContainer').removeClass('hidden');
   }
 
-  // เริ่มการทำงาน
-  $(document).ready(async function() {
-    startClock();
-    startCamera();
-    getLocation();
-
-    try {
-      // ดึงการตั้งค่า
-      const s = await callAPI("getSettings");
-      if(s.logoUrl) { $("#companyLogo").attr("src", s.logoUrl).show(); }
-      allowedLocations = s.locations || [];
-      isSettingsLoaded = true;
-      if (currentLat !== "") checkGeoFencing(currentLat, currentLng);
-
-      // ดึงรายชื่อพนักงาน
-      employeeData = await callAPI("getEmployees");
-    } catch(e) {
-      Swal.fire('ข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้', 'error');
-    }
-
-    // ระบบค้นหาพนักงาน
-    $('#empSearch').on('input', function() {
-      let val = $(this).val().toLowerCase(); let listDiv = $('#autocomplete-list'); listDiv.empty().removeClass('hidden');
-      if(!val) return;
-      let matches = employeeData.filter(emp => String(emp[0]).toLowerCase().includes(val) || String(emp[1]).toLowerCase().includes(val)).slice(0, 10);
-      matches.forEach(emp => {
-        let item = $(`<div><strong>${emp[0]}</strong> - ${emp[1]}</div>`);
-        item.on('click', () => { $('#empSearch').val(`${emp[0]} - ${emp[1]}`); $('#empName').val(emp[1]); listDiv.addClass('hidden'); });
-        listDiv.append(item);
-      });
-    });
-    $(document).click(e => { if(!$(e.target).closest('#empSearch, #autocomplete-list').length) $('#autocomplete-list').addClass('hidden'); });
-  });
-
-  function startClock() {
-    setInterval(() => {
-      const now = new Date(); $('#clock').text(now.toLocaleTimeString('th-TH'));
-      $('#date').text(now.toLocaleDateString('th-TH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }));
-    }, 1000);
-  }
-
   // 📍 ระบบ GPS
   function getLocation() {
     if (navigator.geolocation) {
@@ -191,8 +210,14 @@
           if(isSettingsLoaded) checkGeoFencing(currentLat, currentLng); 
         }, 
         e => { 
-          $("#locationText").html(`<span class="text-danger">❌ คุณไม่อนุญาตให้ใช้ GPS</span>`);
+          if(e.code === 1) { // ถูกผู้ใช้ปฏิเสธ
+            $("#locationText").html(`<span class="text-danger">❌ คุณไม่อนุญาตให้ใช้ GPS</span>`);
+            Swal.fire('ถูกบล็อก GPS', 'คุณต้องอนุญาตให้เว็บเข้าถึงพิกัดเพื่อเช็คอิน', 'error');
+          } else {
+            $("#locationText").html(`<span class="text-danger">❌ ค้นหาสัญญาณ GPS ไม่พบ</span>`);
+          }
           $("#distanceStatus").html(`<span class="badge bg-danger">ไม่สามารถใช้งานได้</span>`);
+          $("#btnCheckIn, #btnCheckOut").prop('disabled', true);
         }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
     }
@@ -217,9 +242,11 @@
   // 📤 ส่งข้อมูลเข้า Google Sheets
   async function submitData(status) {
     let sVal = $('#empSearch').val(), eName = $('#empName').val();
-    if(!sVal || !eName || !base64Image || !isInRange) return Swal.fire('เตือน', 'ข้อมูลไม่ครบ หรือ อยู่นอกพื้นที่', 'warning');
+    if(!sVal || !eName) return Swal.fire('เตือน', 'กรุณาเลือกรายชื่อพนักงาน', 'warning');
+    if(!base64Image) return Swal.fire('เตือน', 'กรุณาถ่ายรูปยืนยันตัวตน', 'warning');
+    if(!isInRange) return Swal.fire('เตือน', 'อยู่นอกพื้นที่ที่กำหนด', 'warning');
 
-    Swal.fire({ title: 'กำลังบันทึก...', didOpen: () => Swal.showLoading() });
+    Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     try {
       let payload = { empId: sVal.split(' - ')[0], empName: eName, status: status, locationName: currentLocName, lat: currentLat, lng: currentLng, imageBase64: base64Image };
       let res = await callAPI("saveRecord", payload);
@@ -231,14 +258,20 @@
     }
   }
 
+  // ⚙️ เข้าสู่โหมด Admin (เปิดหน้า Google Sheets ตรงๆ)
   function toggleAdmin() {
     Swal.fire({ title: 'รหัส Admin', input: 'password', showCancelButton: true }).then(async (res) => {
       if (res.isConfirmed) {
         Swal.fire({title:'ตรวจสอบ...', didOpen:()=>Swal.showLoading()});
         try {
           let valid = await callAPI("verifyAdminPassword", { pwd: res.value });
-          if(valid) window.open("https://docs.google.com/spreadsheets/d/ใส่_ID_SHEETS_ของคุณที่นี่", "_blank");
-          else Swal.fire('พลาด', 'รหัสผ่านผิด', 'error');
+          if(valid) {
+            Swal.fire('สำเร็จ', 'กำลังเปิดฐานข้อมูล...', 'success');
+            // 💡 เปลี่ยนลิงก์ด้านล่างนี้ เป็นลิงก์ Google Sheets ของคุณได้เลยครับ
+            window.open("https://docs.google.com/spreadsheets/", "_blank");
+          } else {
+            Swal.fire('พลาด', 'รหัสผ่านผิด', 'error');
+          }
         } catch(e) { Swal.fire('Error', e.message, 'error'); }
       }
     });
