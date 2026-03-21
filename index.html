@@ -30,7 +30,7 @@
     .bg-t-green { background: linear-gradient(45deg, #11998e, #38ef7d); }
     .bg-t-red { background: linear-gradient(45deg, #cb2d3e, #ef473a); }
     .bg-t-orange { background: linear-gradient(45deg, #f12711, #f5af19); }
-    .table-img { width: 45px; height: 45px; object-fit: cover; border-radius: 8px; border: 1px solid #ddd; cursor: pointer; }
+    .table-img { width: 45px; height: 45px; object-fit: cover; border-radius: 8px; border: 1px solid #ddd; cursor: pointer; transition: transform 0.2s ease; background: #f8f9fa; }
     .table-img:hover { transform: scale(3.5); position: relative; z-index: 999; }
   </style>
 </head>
@@ -85,8 +85,11 @@
 <div class="container-fluid d-flex justify-content-center align-items-start hidden" id="adminContainer" style="min-height: 100vh; padding-top: 20px;">
   <div id="adminSection" class="glass-card admin-card">
     <div class="d-flex justify-content-between align-items-center mb-3">
-      <h3 class="mb-0">Admin Dashboard</h3>
-      <button type="button" class="btn btn-outline-danger btn-sm rounded-pill" onclick="closeAdmin()">ปิด</button>
+      <h3 class="mb-0"><i class="fas fa-cogs text-primary"></i> Admin Dashboard</h3>
+      <div>
+        <button type="button" class="btn btn-primary btn-sm rounded-pill me-2" onclick="loadAdminData()"><i class="fas fa-sync-alt"></i> โหลดข้อมูลใหม่</button>
+        <button type="button" class="btn btn-outline-danger btn-sm rounded-pill" onclick="closeAdmin()">ปิด</button>
+      </div>
     </div>
 
     <ul class="nav nav-tabs mb-3">
@@ -99,13 +102,13 @@
       <div class="tab-pane fade show active" id="tabReport">
         <div class="row g-2 mb-4">
           <div class="col-6 col-md-3"><div class="stat-box bg-t-blue"><h3 id="statTotal">-</h3><p>ทั้งหมด</p></div></div>
-          <div class="col-6 col-md-3"><div class="stat-box bg-t-green"><h3 id="statCheckIn">-</h3><p>เข้าแล้ว</p></div></div>
+          <div class="col-6 col-md-3"><div class="stat-box bg-t-green"><h3 id="statCheckIn">-</h3><p>เข้าแล้ววันนี้</p></div></div>
           <div class="col-6 col-md-3"><div class="stat-box bg-t-red"><h3 id="statLate">-</h3><p>สาย</p></div></div>
           <div class="col-6 col-md-3"><div class="stat-box bg-t-orange"><h3 id="statMissing">-</h3><p>ยังไม่เข้า</p></div></div>
         </div>
         <div class="table-responsive">
           <table id="reportTable" class="table table-striped table-bordered align-middle w-100" style="font-size:0.85rem;">
-            <thead><tr><th>เวลา</th><th>ชื่อ-สกุล</th><th>สถานะ</th><th>สถานที่</th><th>สาย</th><th>รูป</th><th>จัดการ</th></tr></thead>
+            <thead><tr><th>เวลา</th><th>รหัส</th><th>ชื่อ-สกุล</th><th>สถานะ</th><th>สถานที่</th><th>เข้าสาย</th><th>ชม.ทำงาน</th><th>แผนที่</th><th>รูป</th><th>จัดการ</th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
@@ -113,18 +116,39 @@
       
       <div class="tab-pane fade" id="tabEmp">
         <div class="bg-light p-3 rounded border mb-3">
-          <input type="text" id="newEmpId" placeholder="รหัส"> <input type="text" id="newEmpName" placeholder="ชื่อ">
-          <button onclick="addEmp()" class="btn btn-primary btn-sm">เพิ่ม</button>
+          <div class="row g-2">
+            <div class="col-md-5"><input type="text" id="newEmpId" class="form-control" placeholder="รหัสพนักงาน"></div>
+            <div class="col-md-5"><input type="text" id="newEmpName" class="form-control" placeholder="ชื่อ-สกุล"></div>
+            <div class="col-md-2"><button onclick="addEmp()" class="btn btn-primary w-100">เพิ่ม</button></div>
+          </div>
         </div>
-        <table id="empTable" class="table table-bordered w-100"><thead><tr><th>รหัส</th><th>ชื่อ</th><th>ลบ</th></tr></thead><tbody id="empTableBody"></tbody></table>
+        <table id="empTable" class="table table-bordered w-100">
+          <thead class="table-secondary"><tr><th>รหัส</th><th>ชื่อ</th><th>ลบ</th></tr></thead>
+          <tbody id="empTableBody"></tbody>
+        </table>
       </div>
 
       <div class="tab-pane fade" id="tabSettings">
-         <div class="row g-2">
-           <div class="col-12"><label>Logo URL</label><input type="text" id="setLogo" class="form-control"></div>
-           <div class="col-12"><label>เวลาเริ่มงาน</label><input type="text" id="setWorkTime" class="form-control"></div>
-           <div class="col-12"><label>Line Token</label><textarea id="setLineToken" class="form-control"></textarea></div>
-           <div class="col-12"><button onclick="saveSettings()" class="btn btn-success w-100 mt-2">บันทึกตั้งค่า</button></div>
+         <div class="row g-3">
+           <div class="col-md-6">
+             <div class="bg-light p-3 border rounded h-100">
+               <label class="fw-bold">Logo URL</label>
+               <input type="text" id="setLogo" class="form-control mb-3">
+               <label class="fw-bold">เวลาเริ่มงาน (เช่น 08:30)</label>
+               <input type="text" id="setWorkTime" class="form-control mb-3">
+               <label class="fw-bold text-danger">เปลี่ยนรหัสผ่าน Admin</label>
+               <input type="text" id="setAdminPwd" class="form-control" placeholder="เว้นว่างถ้าไม่ต้องการเปลี่ยน">
+             </div>
+           </div>
+           <div class="col-md-6">
+             <div class="bg-light p-3 border rounded h-100 border-success">
+               <label class="fw-bold text-success">LINE Access Token</label>
+               <textarea id="setLineToken" class="form-control mb-3" rows="3"></textarea>
+               <label class="fw-bold text-success">LINE Target ID</label>
+               <input type="text" id="setLineTarget" class="form-control mb-2">
+             </div>
+           </div>
+           <div class="col-12"><button onclick="saveSettings()" class="btn btn-success w-100 py-2">บันทึกตั้งค่าทั้งหมด</button></div>
          </div>
       </div>
     </div>
@@ -145,22 +169,34 @@
   let reportTable = null;
 
   async function callAPI(action, payload = {}) {
-    const res = await fetch(API_URL, { method: "POST", body: JSON.stringify({ action: action, data: payload }) });
-    const json = await res.json();
-    return json.data;
+    try {
+      const res = await fetch(API_URL, { method: "POST", body: JSON.stringify({ action: action, data: payload }) });
+      const json = await res.json();
+      return json.data;
+    } catch (e) { console.error("API Error", e); return null; }
+  }
+
+  // 📸 ฟังก์ชันแปลงลิงก์รูปภาพ Google Drive ให้โชว์ในแท็ก img ได้
+  function getDriveImageSrc(url) {
+    if (!url) return '';
+    let fileIdMatch = url.match(/[-\w]{25,}/);
+    if (fileIdMatch) return "https://lh3.googleusercontent.com/d/" + fileIdMatch[0];
+    return url;
   }
 
   function initSystem() { $('#initScreen').addClass('hidden'); $('#cameraContainer').removeClass('hidden'); startCamera(); getLocation(); }
 
   function startCamera() {
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } }).then(s => { document.getElementById('cameraStream').srcObject = s; });
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } }).then(s => { document.getElementById('cameraStream').srcObject = s; });
+    }
   }
 
   function takePhoto() {
     const v = document.getElementById('cameraStream');
     const c = document.getElementById('canvas');
-    c.width = v.videoWidth; c.height = v.videoHeight;
-    c.getContext('2d').drawImage(v, 0, 0);
+    c.width = v.videoWidth || 640; c.height = v.videoHeight || 480;
+    c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
     const dataUrl = c.toDataURL('image/jpeg', 0.8);
     base64Image = dataUrl.split(',')[1];
     document.getElementById('preview').src = dataUrl;
@@ -171,74 +207,160 @@
 
   $(document).ready(async function() {
     setInterval(() => { const n = new Date(); $('#clock').text(n.toLocaleTimeString('th-TH')); $('#date').text(n.toLocaleDateString('th-TH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })); }, 1000);
+    
+    // โหลด Settings สำหรับหน้าแรก
     const s = await callAPI("getSettings");
-    if(s.logoUrl) $("#companyLogo").attr("src", s.logoUrl).show();
-    allowedLocations = s.locations || [];
-    employeeData = await callAPI("getEmployees");
+    if(s && s.logoUrl) $("#companyLogo").attr("src", s.logoUrl).show();
+    allowedLocations = (s && s.locations) ? s.locations : [];
+    
+    employeeData = await callAPI("getEmployees") || [];
 
     $('#empSearch').on('input', function() {
       let val = $(this).val().toLowerCase(); let listDiv = $('#autocomplete-list'); listDiv.empty().removeClass('hidden');
       if(!val) return;
-      employeeData.filter(e => String(e[0]).includes(val) || String(e[1]).includes(val)).forEach(emp => {
-        let item = $(`<div>${emp[0]} - ${emp[1]}</div>`).on('click', () => { $('#empSearch').val(`${emp[0]} - ${emp[1]}`); $('#empName').val(emp[1]); listDiv.addClass('hidden'); });
+      employeeData.filter(e => String(e[0]).includes(val) || String(e[1]).includes(val)).slice(0, 10).forEach(emp => {
+        let item = $(`<div><strong>${emp[0]}</strong> - ${emp[1]}</div>`).on('click', () => { $('#empSearch').val(`${emp[0]} - ${emp[1]}`); $('#empName').val(emp[1]); listDiv.addClass('hidden'); });
         listDiv.append(item);
       });
     });
+    $(document).click(e => { if(!$(e.target).closest('#empSearch, #autocomplete-list').length) $('#autocomplete-list').addClass('hidden'); });
   });
 
   function getLocation() {
     navigator.geolocation.watchPosition(p => {
       currentLat = p.coords.latitude; currentLng = p.coords.longitude;
-      $("#locationText").text(`📍 พิกัด: ${currentLat.toFixed(5)}, ${currentLng.toFixed(5)}`);
+      $("#locationText").html(`📍 พิกัด: ${currentLat.toFixed(5)}, ${currentLng.toFixed(5)}`);
       checkGeo(currentLat, currentLng);
-    }, null, { enableHighAccuracy: true });
+    }, e => {
+      $("#locationText").html(`<span class="text-danger">❌ ค้นหาพิกัดไม่พบ หรือถูกบล็อก</span>`);
+    }, { enableHighAccuracy: true });
   }
 
   function checkGeo(lat, lng) {
-    let ok = false;
+    if(allowedLocations.length === 0) return;
+    let ok = false, locName = "นอกพื้นที่";
     for (let l of allowedLocations) {
       let d = Math.round(6371e3 * 2 * Math.atan2(Math.sqrt(Math.sin((l.lat-lat)*Math.PI/360)**2 + Math.cos(lat*Math.PI/180)*Math.cos(l.lat*Math.PI/180)*Math.sin((l.lng-lng)*Math.PI/360)**2), Math.sqrt(1-(Math.sin((l.lat-lat)*Math.PI/360)**2 + Math.cos(lat*Math.PI/180)*Math.cos(l.lat*Math.PI/180)*Math.sin((l.lng-lng)*Math.PI/360)**2))));
-      if (d <= l.radius) { ok = true; $("#distanceStatus").html(`<span class="badge bg-success">✅ ${l.name}</span>`); break; }
+      if (d <= l.radius) { ok = true; locName = l.name; $("#distanceStatus").html(`<span class="badge bg-success">✅ ${l.name}</span>`); break; }
     }
     if(!ok) $("#distanceStatus").html(`<span class="badge bg-danger">❌ นอกพื้นที่</span>`);
     $("#btnCheckIn, #btnCheckOut").prop('disabled', !ok);
   }
 
   async function submitData(status) {
-    if(!$('#empName').val() || !base64Image) return Swal.fire('เตือน', 'กรอกข้อมูลและถ่ายรูป', 'warning');
+    if(!$('#empName').val() || !base64Image) return Swal.fire('เตือน', 'กรอกข้อมูลและถ่ายรูปให้ครบ', 'warning');
     Swal.fire({ title: 'กำลังบันทึก...', didOpen: () => Swal.showLoading() });
-    await callAPI("saveRecord", { empId: $('#empSearch').val().split(' - ')[0], empName: $('#empName').val(), status: status, imageBase64: base64Image, lat: currentLat, lng: currentLng });
-    Swal.fire('สำเร็จ', '', 'success').then(() => location.reload());
+    await callAPI("saveRecord", { empId: $('#empSearch').val().split(' - ')[0], empName: $('#empName').val(), status: status, imageBase64: base64Image, lat: currentLat, lng: currentLng, locationName: $("#distanceStatus").text().replace(/✅ |❌ /,'').split(' ')[0] });
+    Swal.fire('สำเร็จ', '', 'success').then(() => { $('#empSearch').val(''); $('#empName').val(''); retakePhoto(); });
   }
 
   async function toggleAdmin() {
     const { value: pwd } = await Swal.fire({ title: 'รหัส Admin', input: 'password' });
-    if (await callAPI("verifyAdminPassword", { pwd: pwd })) {
-      $('#userContainer').addClass('hidden'); $('#adminContainer').removeClass('hidden');
-      loadAdminData();
-    } else { Swal.fire('พลาด', 'รหัสผิด', 'error'); }
+    if(pwd) {
+      Swal.fire({ title: 'กำลังตรวจสอบ...', didOpen: () => Swal.showLoading() });
+      if (await callAPI("verifyAdminPassword", { pwd: pwd })) {
+        $('#userContainer').addClass('hidden'); $('#adminContainer').removeClass('hidden');
+        loadAdminData();
+      } else { Swal.fire('พลาด', 'รหัสผิด', 'error'); }
+    }
   }
 
   function closeAdmin() { $('#adminContainer').addClass('hidden'); $('#userContainer').removeClass('hidden'); }
 
+  // 🚀 โหลดข้อมูล Admin สมบูรณ์แบบ
   async function loadAdminData() {
-    const logs = await callAPI("getLogs");
+    Swal.fire({ title: 'กำลังดึงข้อมูลฐานระบบ...', didOpen: () => Swal.showLoading() });
+
+    // 1. จัดการตาราง Report
+    const logs = await callAPI("getLogs") || [];
     let tbody = "";
+    let todayStr = new Date().toLocaleDateString('en-GB');
+    let checkedInSet = new Set(), lateCount = 0;
+
     logs.forEach(r => {
-      let img = r[7] ? `<img src="${r[7]}" class="table-img">` : '-';
-      tbody += `<tr><td>${r[0]}</td><td>${r[2]}</td><td>${r[3]}</td><td>${r[4]}</td><td>${r[8]}</td><td>${img}</td><td><button onclick="delLog('${r[10]}','${r[1]}')" class="btn btn-danger btn-sm">ลบ</button></td></tr>`;
+      // นับสถิติ
+      if(r[0] && String(r[0]).includes(todayStr) && r[3] === 'Check-In') {
+        checkedInSet.add(r[1]);
+        if (r[8] !== 'ปกติ' && r[8] !== '-' && r[8] !== '') lateCount++;
+      }
+
+      // วาดแถวตาราง
+      let lateBadge = r[8] === "ปกติ" ? '<span class="badge bg-success">ปกติ</span>' : (r[8] && r[8] !== "-" ? '<span class="badge bg-danger">' + r[8] + '</span>' : "-");
+      let mapLink = `<a href="http://googleusercontent.com/maps.google.com/9${r[5]},${r[6]}" target="_blank" class="btn btn-sm btn-info text-white py-0"><i class="fas fa-map-marker-alt"></i></a>`;
+      let imgLink = r[7] ? `<a href="${r[7]}" target="_blank"><img src="${getDriveImageSrc(r[7])}" class="table-img" alt="รูป"></a>` : '-';
+      
+      tbody += `<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td><span class="badge ${r[3]==='Check-In'?'bg-success':'bg-danger'}">${r[3]}</span></td><td><b>${r[4]}</b></td><td>${lateBadge}</td><td><b class="text-primary">${r[9]||'-'}</b></td><td>${mapLink}</td><td>${imgLink}</td><td><button onclick="delLog('${r[10] || r[0]}','${r[1]}')" class="btn btn-danger btn-sm py-0">ลบ</button></td></tr>`;
     });
+
     if(reportTable) reportTable.destroy();
     $('#reportTable tbody').html(tbody);
     reportTable = $('#reportTable').DataTable({ order: [[0, "desc"]] });
-    
-    // อัปเดตสถิติ
-    $('#statTotal').text(employeeData.length);
-    $('#statCheckIn').text(new Set(logs.filter(l => l[0].includes(new Date().toLocaleDateString('en-GB'))).map(l => l[1])).size);
+
+    // 2. จัดการตาราง Employee
+    employeeData = await callAPI("getEmployees") || [];
+    let empHtml = "";
+    employeeData.forEach(e => {
+      empHtml += `<tr><td>${e[0]}</td><td>${e[1]}</td><td><button class="btn btn-sm btn-danger py-0" onclick="delEmp('${e[0]}','${e[1]}')"><i class="fas fa-trash"></i></button></td></tr>`;
+    });
+    $("#empTableBody").html(empHtml);
+
+    // 3. จัดการ Settings
+    const s = await callAPI("getSettings");
+    if(s) {
+      $("#setLogo").val(s.logoUrl || "");
+      $("#setWorkTime").val(s.workStartTime || "08:30");
+      $("#setLineToken").val(s.lineToken || "");
+      $("#setLineTarget").val(s.lineTarget || "");
+    }
+
+    // อัปเดตตัวเลขสถิติ
+    let totalE = employeeData.length;
+    $('#statTotal').text(totalE);
+    $('#statCheckIn').text(checkedInSet.size);
+    $('#statLate').text(lateCount);
+    $('#statMissing').text(Math.max(0, totalE - checkedInSet.size));
+
+    Swal.close();
   }
 
-  async function addEmp() { await callAPI("addEmployee", { empId: $('#newEmpId').val(), empName: $('#newEmpName').val() }); loadAdminData(); }
-  async function delLog(ts, id) { await callAPI("deleteLogRecord", { ts: ts, eid: id }); loadAdminData(); }
+  // ฟังก์ชันย่อยสำหรับ Admin
+  async function addEmp() {
+    let id = $('#newEmpId').val(), name = $('#newEmpName').val();
+    if(!id || !name) return;
+    Swal.fire({title:'กำลังเพิ่ม...', didOpen:()=>Swal.showLoading()});
+    await callAPI("addEmployee", { empId: id, empName: name });
+    $('#newEmpId').val(''); $('#newEmpName').val('');
+    loadAdminData();
+  }
+
+  async function delEmp(id, name) {
+    if(confirm(`ลบพนักงาน ${name}?`)) {
+      Swal.fire({title:'กำลังลบ...', didOpen:()=>Swal.showLoading()});
+      await callAPI("deleteEmployee", { empId: id });
+      loadAdminData();
+    }
+  }
+
+  async function delLog(ts, id) {
+    if(confirm('ลบประวัตินี้?')) {
+      Swal.fire({title:'กำลังลบ...', didOpen:()=>Swal.showLoading()});
+      await callAPI("deleteLogRecord", { ts: ts, eid: id });
+      loadAdminData();
+    }
+  }
+
+  async function saveSettings() {
+    Swal.fire({title:'กำลังบันทึก...', didOpen:()=>Swal.showLoading()});
+    await callAPI("saveAdvanceSettings", {
+      logo: $('#setLogo').val(),
+      pwd: $('#setAdminPwd').val(),
+      time: $('#setWorkTime').val(),
+      token: $('#setLineToken').val(),
+      target: $('#setLineTarget').val()
+    });
+    $('#setAdminPwd').val('');
+    Swal.fire('สำเร็จ', 'บันทึกการตั้งค่าแล้ว', 'success');
+  }
 </script>
 </body>
 </html>
