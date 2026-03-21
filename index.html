@@ -3,11 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Smart Check-In Enterprise</title>
+  <title>Smart Check-In Enterprise V12</title>
   
   <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.datatables.net/1.13.4/css/dataTables.bootstrap5.min.css" rel="stylesheet">
   <link href="https://cdn.datatables.net/buttons/2.3.6/css/buttons.bootstrap5.min.css" rel="stylesheet">
@@ -54,23 +53,14 @@
       <button type="button" class="btn btn-warning btn-lg rounded-pill px-4 shadow-sm" onclick="initSystem()">
         <i class="fas fa-power-off"></i> แตะเพื่อเปิดกล้อง & GPS
       </button>
-      <p class="text-muted small mt-2 mb-0">ระบบจำเป็นต้องให้คุณแตะเพื่อขออนุญาต</p>
+      <p class="text-muted small mt-2 mb-0">เบราว์เซอร์ต้องการให้คุณแตะเพื่อขออนุญาต</p>
     </div>
 
     <div id="cameraContainer" class="position-relative mx-auto shadow-sm hidden" style="max-width: 300px; border-radius: 15px; overflow: hidden; border: 2px solid #ddd; background: #000; margin-bottom: 15px;">
-      
-      <div id="videoWrapper" style="width: 100%; height: 220px; position: relative;">
-        <video id="cameraStream" autoplay playsinline style="width: 100%; height: 100%; display: block; object-fit: cover;"></video>
-        <button type="button" class="btn btn-primary position-absolute bottom-0 start-50 translate-middle-x mb-3 rounded-pill px-4 shadow" onclick="takePhoto()">
-          <i class="fas fa-camera"></i> ถ่ายรูป
-        </button>
-      </div>
-
-      <div id="fallbackWrapper" class="hidden d-flex flex-column justify-content-center align-items-center" style="width: 100%; height: 220px; background: #f8f9fa;">
-        <p class="text-danger small mb-3 fw-bold"><i class="fas fa-camera"></i> แตะช่องด้านล่างเพื่อถ่ายรูป</p>
-        <input type="file" id="fallbackPhotoInput" accept="image/*" capture="environment" class="form-control shadow-sm" style="width: 85%; padding: 10px;" onchange="handleFallbackPhoto(event)">
-      </div>
-
+      <video id="cameraStream" autoplay playsinline style="width: 100%; height: 220px; display: block; object-fit: cover;"></video>
+      <button type="button" class="btn btn-primary position-absolute bottom-0 start-50 translate-middle-x mb-2 rounded-pill px-4 shadow" onclick="takePhoto()">
+        <i class="fas fa-camera"></i> ถ่ายรูป
+      </button>
     </div>
 
     <div id="previewContainer" class="hidden text-center mb-3">
@@ -197,13 +187,13 @@
 
 <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap5.min.js"></script>
-<script src="https://cdn.datatables.net/buttons/2.3.6/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.3.6/js/dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/buttons/2.3.6/js/buttons.bootstrap5.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.3/jszip.min.js"></script>
 <script src="https://cdn.datatables.net/buttons/2.3.6/js/buttons.html5.min.js"></script>
 
 <script>
-  // 🔗 1. แก้ไข URL API ของคุณตรงนี้ (ห้ามลืมเปลี่ยนเด็ดขาด)
+  // 🔗 1. แก้ไข URL API ของคุณตรงนี้
   const API_URL = "https://script.google.com/macros/s/AKfycbyl4pjwAszaeJ7GodtY9anJkip6uGrXxj8GWVxYYf_5PF_FB1DnFRWbqDWBGOxSVJNeEQ/exec";
 
   let employeeData = [], allowedLocations = [], currentLat = "", currentLng = "", base64Image = "";
@@ -231,32 +221,17 @@
     getLocation(); 
   }
 
-  // 🟢 ระบบกล้องไฮบริด
+  // 🟢 ระบบกล้อง WebRTC สดๆ
   function startCamera() {
     const v = document.getElementById('cameraStream');
-    const videoWrapper = document.getElementById('videoWrapper');
-    const fallbackWrapper = document.getElementById('fallbackWrapper');
-    
     $('#cameraContainer').removeClass('hidden');
     
-    const userAgent = navigator.userAgent.toLowerCase();
-    const isLineApp = userAgent.includes("line");
-
-    if (!isLineApp && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
       navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false })
-        .then(s => { 
-          v.srcObject = s; 
-          videoWrapper.classList.remove('hidden');
-          fallbackWrapper.classList.add('hidden');
-        })
-        .catch(err => { 
-          videoWrapper.classList.add('hidden');
-          fallbackWrapper.classList.remove('hidden');
-        });
+        .then(s => { v.srcObject = s; })
+        .catch(err => { Swal.fire('ข้อผิดพลาด', 'ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตให้สิทธิ์', 'error'); });
     } else {
-      // โหมดแอป LINE ให้โชว์ปุ่มมาตรฐาน
-      videoWrapper.classList.add('hidden');
-      fallbackWrapper.classList.remove('hidden');
+      Swal.fire('ข้อผิดพลาด', 'เบราว์เซอร์ของคุณไม่รองรับการเปิดกล้องสด', 'error');
     }
   }
 
@@ -272,29 +247,35 @@
     $('#cameraContainer').addClass('hidden'); $('#previewContainer').removeClass('hidden');
   }
 
-  function handleFallbackPhoto(event) {
-    const file = event.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        const dataUrl = e.target.result;
-        base64Image = dataUrl.split(',')[1];
-        document.getElementById('preview').src = dataUrl;
-        $('#cameraContainer').addClass('hidden');
-        $('#previewContainer').removeClass('hidden');
-      };
-      reader.readAsDataURL(file);
-    }
-  }
-
   function retakePhoto() { 
     base64Image = ""; 
-    $('#fallbackPhotoInput').val(''); 
     $('#previewContainer').addClass('hidden'); 
     $('#cameraContainer').removeClass('hidden'); 
   }
 
   $(document).ready(async function() {
+    
+    // 🟢 ดักจับแอป LINE ทันทีที่โหลดหน้าเว็บ
+    const isLineApp = /Line/i.test(navigator.userAgent);
+    if (isLineApp) {
+      $('#userContainer').addClass('hidden');
+      $('body').prepend(`
+        <div id="lineWarning" class="container d-flex justify-content-center align-items-center" style="min-height: 100vh; position: absolute; z-index: 9999; left: 0; right: 0;">
+          <div class="glass-card text-center p-4 shadow-lg" style="border: 2px solid #ffc107;">
+            <i class="fas fa-external-link-alt text-warning mb-3" style="font-size: 4rem;"></i>
+            <h4 class="fw-bold text-dark mt-2">LINE ไม่รองรับการเปิดกล้อง</h4>
+            <div class="mt-4 mb-3 text-start bg-light p-3 rounded border">
+              <p class="mb-2 text-muted" style="font-size: 1rem;">1. กดปุ่ม <strong>จุด 3 จุด <i class="fas fa-ellipsis-v"></i> หรือ <i class="fas fa-ellipsis-h"></i></strong> ที่มุมขวาบน หรือล่างของจอ</p>
+              <p class="mb-0 text-muted" style="font-size: 1rem;">2. เลือกเมนู <strong class="text-primary">"เปิดด้วยเบราว์เซอร์อื่น"</strong></p>
+            </div>
+            <p class="small text-danger fw-bold mt-2">** เพื่อให้ระบบตรวจสอบกล้องและ GPS ทำงานได้สมบูรณ์ **</p>
+          </div>
+        </div>
+      `);
+      return; // สั่งให้หยุดรันโค้ดส่วนอื่น เพื่อบังคับให้ผู้ใช้ออกไปเปิดใน Chrome/Safari
+    }
+
+    // ทำงานปกติถ้าไม่ใช่แอป LINE
     setInterval(() => { const n = new Date(); $('#clock').text(n.toLocaleTimeString('th-TH')); $('#date').text(n.toLocaleDateString('th-TH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })); }, 1000);
     
     const s = await callAPI("getSettings");
@@ -312,7 +293,7 @@
     });
     $(document).click(e => { if(!$(e.target).closest('#empSearch, #autocomplete-list').length) $('#autocomplete-list').addClass('hidden'); });
 
-    // 🟢 ฟังก์ชันกรองวันที่ DataTables
+    // ฟังก์ชันกรองวันที่ DataTables
     $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
       if (settings.nTable.id !== 'reportTable') return true;
       let min = $('#minDate').val(); let max = $('#maxDate').val();
@@ -322,7 +303,7 @@
       let dParts = rDateStr.includes('/') ? rDateStr.split('/') : rDateStr.split('-');
       if(dParts.length < 3) return true; 
 
-      let rDateObj = new Date(dParts[2], dParts[1] - 1, dParts[0]); // ตีความเป็น yyyy, mm, dd
+      let rDateObj = new Date(dParts[2], dParts[1] - 1, dParts[0]); 
       
       let minD = min ? new Date(min) : null; if(minD) minD.setHours(0,0,0,0);
       let maxD = max ? new Date(max) : null; if(maxD) maxD.setHours(23,59,59,999);
@@ -405,10 +386,9 @@
       }
 
       let lateBadge = r[8] === "ปกติ" ? '<span class="badge bg-success">ปกติ</span>' : (r[8] && r[8] !== "-" ? '<span class="badge bg-danger">' + r[8] + '</span>' : "-");
-      let mapLink = `<a href="https://www.google.com/maps?q=0$${r[5]},${r[6]}" target="_blank" class="btn btn-sm btn-info text-white py-0"><i class="fas fa-map-marker-alt"></i></a>`;
+      let mapLink = `<a href="http://googleusercontent.com/maps.google.com/3${r[5]},${r[6]}" target="_blank" class="btn btn-sm btn-info text-white py-0"><i class="fas fa-map-marker-alt"></i></a>`;
       let imgLink = r[7] ? `<a href="${r[7]}" target="_blank"><img src="${getDriveImageSrc(r[7])}" class="table-img" alt="รูป"></a>` : '-';
       
-      // 🟢 10 คอลัมน์เป๊ะ ป้องกัน Error Incorrect Column
       tbody += `<tr>
         <td>${r[0]}</td>
         <td>${r[1]}</td>
