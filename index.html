@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Smart Check-In Enterprise</title>
+  <title>Smart Check-In Enterprise V12</title>
   
   <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -202,21 +202,29 @@
 <script src="https://cdn.datatables.net/buttons/2.3.6/js/buttons.html5.min.js"></script>
 
 <script>
-  // 🔗 1. แก้ไข URL API ของคุณตรงนี้
+  // 🔗 1. แก้ไข URL API ของคุณตรงนี้ (ห้ามลืมเปลี่ยนเด็ดขาด)
   const API_URL = "https://script.google.com/macros/s/AKfycbyl4pjwAszaeJ7GodtY9anJkip6uGrXxj8GWVxYYf_5PF_FB1DnFRWbqDWBGOxSVJNeEQ/exec";
 
   let employeeData = [], allowedLocations = [], currentLat = "", currentLng = "", base64Image = "";
   let reportTable = null;
 
-  // 🟢 แก้ไขฟังก์ชัน callAPI ให้ดักจับ Error และข้อความแจ้งเตือนซ้ำได้ถูกต้อง
+  // 🟢 ฟังก์ชันเชื่อมต่อ API (ดักจับ Error แจ้งเตือนซ้ำได้แม่นยำ)
   async function callAPI(action, payload = {}) {
     try {
       const res = await fetch(API_URL, { method: "POST", body: JSON.stringify({ action: action, data: payload }) });
       const json = await res.json();
+      
+      // ดัก Error การเชื่อมต่อ
       if (!json.success) throw new Error(json.message || "เกิดข้อผิดพลาดในการเชื่อมต่อ");
+      
+      // ดัก Error จาก Apps Script (เช่น คุณได้บันทึกเวลาไปแล้ว)
+      if (json.data && json.data.success === false) {
+        throw new Error(json.data.message); 
+      }
+      
       return json.data;
     } catch (e) { 
-      throw e; // โยน Error ออกไปให้ฟังก์ชัน submitData จัดการแจ้งเตือน
+      throw e; 
     }
   }
 
@@ -254,7 +262,6 @@
           fallbackWrapper.classList.remove('hidden');
         });
     } else {
-      // โหมดแอป LINE ให้โชว์ปุ่มมาตรฐาน
       videoWrapper.classList.add('hidden');
       fallbackWrapper.classList.remove('hidden');
     }
@@ -295,16 +302,6 @@
   }
 
   $(document).ready(async function() {
-    // 🟢 ดักจับแอป LINE (คอมเมนต์ส่วนนี้ไว้ ถ้าอยากให้พนักงานเปิดบนไลน์ได้ แต่ถ้าอยากให้ไปเปิดบน Chrome ให้เอาคอมเมนต์ออกครับ)
-    /*
-    const isLineApp = /Line/i.test(navigator.userAgent);
-    if (isLineApp) {
-      $('#userContainer').addClass('hidden');
-      $('body').prepend(`...`);
-      return; 
-    }
-    */
-
     setInterval(() => { const n = new Date(); $('#clock').text(n.toLocaleTimeString('th-TH')); $('#date').text(n.toLocaleDateString('th-TH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })); }, 1000);
     
     try {
@@ -312,7 +309,7 @@
       if(s && s.logoUrl) $("#companyLogo").attr("src", s.logoUrl).show();
       allowedLocations = (s && s.locations) ? s.locations : [];
       employeeData = await callAPI("getEmployees") || [];
-    } catch(e) { console.log("โหลดข้อมูลตั้งต้นไม่สำเร็จ"); }
+    } catch(e) { console.log("รอการเชื่อมต่อฐานข้อมูล..."); }
 
     $('#empSearch').on('input', function() {
       let val = $(this).val().toLowerCase(); let listDiv = $('#autocomplete-list'); listDiv.empty().removeClass('hidden');
@@ -353,7 +350,7 @@
     }, { enableHighAccuracy: true });
   }
 
-  // 🟢 แก้ไขการคำนวณและแสดงระยะห่าง (ระยะทาง) ให้กลับมาเหมือนเดิม
+  // 🟢 คำนวณระยะห่างให้โชว์ (ห่าง XX ม.) หรือ (ใกล้สุด XX ม.)
   function checkGeo(lat, lng) {
     if(allowedLocations.length === 0) return;
     let ok = false, locName = "นอกพื้นที่";
@@ -375,30 +372,51 @@
     $("#btnCheckIn, #btnCheckOut").prop('disabled', !ok);
   }
 
-  // 🟢 แก้ไขให้จับ Error บันทึกซ้ำจาก Google Sheets มาโชว์ได้
+  // 🟢 ส่งข้อมูล พร้อมระบบ Popup ยืนยันเพื่อกันกดผิด
   async function submitData(status) {
     if(!$('#empName').val() || !base64Image) return Swal.fire('เตือน', 'กรอกข้อมูลและถ่ายรูปให้ครบ', 'warning');
     
-    // ตัดคำว่า (ห่าง XX ม.) ออกก่อนส่งเข้า Google Sheets
+    // ดึงเฉพาะชื่อสถานที่ส่งไป Google Sheets (ตัดคำว่า ห่าง XX ม. ออก)
     let rawLocText = $("#distanceStatus").text();
     let cleanLocName = rawLocText.replace(/✅ |❌ /,'').split(' (ห่าง')[0].trim();
+    cleanLocName = cleanLocName.split(' (ใกล้สุด')[0].trim();
+
+    // กำหนดข้อความและสีปุ่มตามสถานะ
+    let actionText = status === "Check-In" ? "เข้างาน" : "ออกงาน";
+    let btnColor = status === "Check-In" ? "#11998e" : "#cb2d3e";
+
+    // เรียก Popup ยืนยันก่อนทำงานจริง
+    const confirmAction = await Swal.fire({
+      title: `ยืนยันการ${actionText}?`,
+      text: `คุณกำลังจะบันทึกเวลา "${actionText}" ใช่หรือไม่?`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: btnColor,
+      cancelButtonColor: '#6c757d',
+      confirmButtonText: `ใช่, ${actionText}!`,
+      cancelButtonText: 'ยกเลิก'
+    });
+
+    // ถ้าเปลี่ยนใจกดยกเลิก ให้หยุดการทำงาน
+    if (!confirmAction.isConfirmed) return;
 
     Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     
     try {
       await callAPI("saveRecord", { empId: $('#empSearch').val().split(' - ')[0], empName: $('#empName').val(), status: status, imageBase64: base64Image, lat: currentLat, lng: currentLng, locationName: cleanLocName });
       
-      Swal.fire('สำเร็จ', 'บันทึกข้อมูลเรียบร้อย', 'success').then(() => { 
+      Swal.fire('สำเร็จ', `บันทึกข้อมูล${actionText}เรียบร้อย`, 'success').then(() => { 
         $('#empSearch').val(''); 
         $('#empName').val(''); 
         retakePhoto(); 
       });
     } catch(e) {
-      // โชว์ข้อความเตือนถ้าเข้างานซ้ำ
+      // โชว์ข้อความเตือนเมื่อลงเวลาซ้ำ!
       Swal.fire('แจ้งเตือน', e.message, 'warning');
     }
   }
 
+  // Admin Functions
   async function toggleAdmin() {
     const { value: pwd } = await Swal.fire({ title: 'รหัส Admin', input: 'password' });
     if(pwd) {
@@ -446,7 +464,7 @@
         }
 
         let lateBadge = r[8] === "ปกติ" ? '<span class="badge bg-success">ปกติ</span>' : (r[8] && r[8] !== "-" ? '<span class="badge bg-danger">' + r[8] + '</span>' : "-");
-        let mapLink = `<a href="http://googleusercontent.com/maps.google.com/4${r[5]},${r[6]}" target="_blank" class="btn btn-sm btn-info text-white py-0"><i class="fas fa-map-marker-alt"></i></a>`;
+        let mapLink = `<a href="http://googleusercontent.com/maps.google.com/5${r[5]},${r[6]}" target="_blank" class="btn btn-sm btn-info text-white py-0"><i class="fas fa-map-marker-alt"></i></a>`;
         let imgLink = r[7] ? `<a href="${r[7]}" target="_blank"><img src="${getDriveImageSrc(r[7])}" class="table-img" alt="รูป"></a>` : '-';
         
         tbody += `<tr>
