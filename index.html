@@ -6,6 +6,7 @@
   <title>Smart Check-In Enterprise V12</title>
   <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.datatables.net/1.13.4/css/dataTables.bootstrap5.min.css" rel="stylesheet">
   <link href="https://cdn.datatables.net/buttons/2.3.6/css/buttons.bootstrap5.min.css" rel="stylesheet">
@@ -112,10 +113,20 @@
 
         <div class="bg-light p-3 rounded border mb-3">
           <div class="row align-items-end g-2">
-            <div class="col-md-3"><label class="form-label small mb-0">ตั้งแต่วันที่:</label><input type="date" id="minDate" class="form-control form-control-sm"></div>
-            <div class="col-md-3"><label class="form-label small mb-0">ถึงวันที่:</label><input type="date" id="maxDate" class="form-control form-control-sm"></div>
-            <div class="col-md-2"><button class="btn btn-sm btn-primary w-100" onclick="filterDate()"><i class="fas fa-filter"></i> กรอง</button></div>
-            <div class="col-md-2"><button class="btn btn-sm btn-secondary w-100" onclick="clearFilter()"><i class="fas fa-sync"></i> ล้าง</button></div>
+            <div class="col-md-3">
+              <label class="form-label small mb-0 fw-bold text-primary">ตั้งแต่วันที่:</label>
+              <input type="date" id="minDate" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small mb-0 fw-bold text-primary">ถึงวันที่:</label>
+              <input type="date" id="maxDate" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-2">
+              <button class="btn btn-sm btn-primary w-100" onclick="filterDate()"><i class="fas fa-filter"></i> กรองข้อมูล</button>
+            </div>
+            <div class="col-md-2">
+              <button class="btn btn-sm btn-secondary w-100" onclick="clearFilter()"><i class="fas fa-sync"></i> ล้างค่า</button>
+            </div>
           </div>
         </div>
 
@@ -171,12 +182,13 @@
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
 <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap5.min.js"></script>
 <script src="https://cdn.datatables.net/buttons/2.3.6/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.3.6/js/buttons.bootstrap5.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.3/jszip.min.js"></script>
 <script src="https://cdn.datatables.net/buttons/2.3.6/js/buttons.html5.min.js"></script>
-<script src="https://cdn.datatables.net/buttons/2.3.6/js/buttons.bootstrap5.min.js"></script>
 
 <script>
   // 🔗 1. แก้ไข URL API ของคุณตรงนี้
@@ -240,20 +252,21 @@
     });
     $(document).click(e => { if(!$(e.target).closest('#empSearch, #autocomplete-list').length) $('#autocomplete-list').addClass('hidden'); });
 
-    // ฟังก์ชันช่วยคัดกรองวันที่ของ DataTables
+    // 🟢 ระบบกรองวันที่ (เชื่อมกับ DataTable)
     $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
       if (settings.nTable.id !== 'reportTable') return true;
       let min = $('#minDate').val(); let max = $('#maxDate').val();
       if (!min && !max) return true;
       
-      let dateParts = String(data[0]).split(',')[0].split(' ')[0].split('/'); 
-      if(dateParts.length < 3) return true; 
-      let rowDate = new Date(dateParts[2], dateParts[1] - 1, dateParts[0]); 
+      let rowData = settings.aoData[dataIndex]._aData;
+      // ใช้ข้อมูลดิบที่ซ่อนอยู่ใน Data index ที่ 10 เพื่อความแม่นยำที่สุด
+      let rDateObj = new Date(rowData[10] || rowData[0]); 
+      if (isNaN(rDateObj)) return true; // กันเหนียวถ้าแปลงวันที่ไม่ได้ให้โชว์ไว้ก่อน
       
       let minD = min ? new Date(min) : null; if(minD) minD.setHours(0,0,0,0);
       let maxD = max ? new Date(max) : null; if(maxD) maxD.setHours(23,59,59,999);
       
-      if ((!minD && rowDate <= maxD) || (minD <= rowDate && !maxD) || (minD <= rowDate && rowDate <= maxD)) return true;
+      if ((!minD && rDateObj <= maxD) || (minD <= rDateObj && !maxD) || (minD <= rDateObj && rDateObj <= maxD)) return true;
       return false;
     });
   });
@@ -299,7 +312,7 @@
 
   function closeAdmin() { $('#adminContainer').addClass('hidden'); $('#userContainer').removeClass('hidden'); }
 
-  // 🚀 โหลดข้อมูล Admin และระบบนับสถิติ (แก้ไขให้ฉลาดขึ้น)
+  // 🚀 โหลดข้อมูล Admin และคำนวณสถิติ (ฉลาดขึ้น 100%)
   async function loadAdminData() {
     Swal.fire({ title: 'กำลังดึงข้อมูลฐานระบบ...', didOpen: () => Swal.showLoading() });
 
@@ -311,22 +324,30 @@
     let checkedInSet = new Set(), lateCount = 0;
 
     logs.forEach(r => {
-      // ดึงเฉพาะส่วนวันที่ออกมา (เพื่อแก้ปัญหา 21/3 กับ 21/03)
-      let rDateStr = String(r[0]).split(',')[0].trim().split(' ')[0]; 
-      let dParts = rDateStr.split('/');
+      // 🟢 การตรวจสอบวันที่สุดอัจฉริยะ (ใช้เวลาดิบจาก Google Sheets เพื่อความแม่นยำ)
+      let logDate = new Date(r[10] || r[0]); 
       
-      if (dParts.length >= 3) {
-        let rDay = parseInt(dParts[0]), rMonth = parseInt(dParts[1]), rYear = parseInt(dParts[2]);
-        
-        // เช็คว่าเป็นของ "วันนี้" ใช่หรือไม่
-        if (rDay === tDay && rMonth === tMonth && rYear === tYear) {
+      if (!isNaN(logDate.getTime())) {
+        // ถ้าระบบอ่านวันที่ได้ ให้เทียบกันเลยว่าตรงกับ "วันนี้" ไหม
+        if (logDate.getDate() === tDay && (logDate.getMonth() + 1) === tMonth && logDate.getFullYear() === tYear) {
           if (r[3] === 'Check-In') {
-            checkedInSet.add(r[1]); // นับคนเข้างาน (ไม่ซ้ำ)
-            
-            // เช็คว่ามาสายไหม
+            checkedInSet.add(r[1]); // นับคนเข้างาน
             let lateStatus = String(r[8] || '').trim();
             if (lateStatus !== 'ปกติ' && lateStatus !== '-' && lateStatus !== '') {
-              lateCount++;
+              lateCount++; // นับสาย
+            }
+          }
+        }
+      } else {
+        // กรณีฉุกเฉิน: ถ้าแปลงเวลาไม่ได้ ให้ใช้การตัดสตริงแบบดั้งเดิมรองรับทุกรูปแบบ
+        let rDateStr = String(r[0]).replace(/,/g, '').split(' ')[0];
+        let dParts = rDateStr.includes('/') ? rDateStr.split('/') : rDateStr.split('-');
+        if (dParts.length >= 3) {
+          if (parseInt(dParts[0]) === tDay && parseInt(dParts[1]) === tMonth && parseInt(dParts[2]) === tYear) {
+            if (r[3] === 'Check-In') {
+              checkedInSet.add(r[1]);
+              let lateStatus = String(r[8] || '').trim();
+              if (lateStatus !== 'ปกติ' && lateStatus !== '-' && lateStatus !== '') { lateCount++; }
             }
           }
         }
@@ -334,20 +355,22 @@
 
       // วาดแถวตาราง
       let lateBadge = r[8] === "ปกติ" ? '<span class="badge bg-success">ปกติ</span>' : (r[8] && r[8] !== "-" ? '<span class="badge bg-danger">' + r[8] + '</span>' : "-");
-      let mapLink = `<a href="https://www.google.com/maps?q=0${r[5]},${r[6]}" target="_blank" class="btn btn-sm btn-info text-white py-0"><i class="fas fa-map-marker-alt"></i></a>`;
+      let mapLink = `<a href="http://googleusercontent.com/maps.google.com/8${r[5]},${r[6]}" target="_blank" class="btn btn-sm btn-info text-white py-0"><i class="fas fa-map-marker-alt"></i></a>`;
       let imgLink = r[7] ? `<a href="${r[7]}" target="_blank"><img src="${getDriveImageSrc(r[7])}" class="table-img" alt="รูป"></a>` : '-';
       
-      tbody += `<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td><span class="badge ${r[3]==='Check-In'?'bg-success':'bg-danger'}">${r[3]}</span></td><td><b>${r[4]}</b></td><td>${lateBadge}</td><td><b class="text-primary">${r[9]||'-'}</b></td><td>${mapLink}</td><td>${imgLink}</td><td><button onclick="delLog('${r[10] || r[0]}','${r[1]}')" class="btn btn-danger btn-sm py-0">ลบ</button></td></tr>`;
+      tbody += `<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td><span class="badge ${r[3]==='Check-In'?'bg-success':'bg-danger'}">${r[3]}</span></td><td><b>${r[4]}</b></td><td>${lateBadge}</td><td><b class="text-primary">${r[9]||'-'}</b></td><td>${mapLink}</td><td>${imgLink}</td><td><button onclick="delLog('${r[10] || r[0]}','${r[1]}')" class="btn btn-danger btn-sm py-0">ลบ</button></td><td class="hidden">${r[10]}</td></tr>`;
     });
 
     if(reportTable) reportTable.destroy();
     $('#reportTable tbody').html(tbody);
     
-    // ตั้งค่า DataTables พร้อมปุ่ม Export Excel
+    // 🟢 สร้าง DataTable และปุ่ม Export
     reportTable = $('#reportTable').DataTable({ 
       order: [[0, "desc"]],
-      dom: "<'row mb-3'<'col-md-4'l><'col-md-4 text-center'B><'col-md-4'f>>t<'row mt-3'<'col-md-5'i><'col-md-7'p>>",
-      buttons: [ { extend: 'excelHtml5', text: '<i class="fas fa-file-excel"></i> ส่งออก Excel', className: 'btn btn-success btn-sm' } ],
+      dom: "<'row mb-2'<'col-sm-12 col-md-4'l><'col-sm-12 col-md-4 text-center'B><'col-sm-12 col-md-4'f>>" +
+           "<'row'<'col-sm-12'tr>>" +
+           "<'row mt-2'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
+      buttons: [ { extend: 'excelHtml5', text: '<i class="fas fa-file-excel"></i> ส่งออก Excel', className: 'btn btn-success btn-sm px-3 shadow-sm' } ],
       lengthMenu: [[10, 30, 50, 100, -1], [10, 30, 50, 100, "ทั้งหมด"]]
     });
 
@@ -364,7 +387,7 @@
       $("#setLineToken").val(s.lineToken || ""); $("#setLineTarget").val(s.lineTarget || "");
     }
 
-    // อัปเดตตัวเลขสถิติ
+    // อัปเดตตัวเลขสถิติด้านบน
     let totalE = employeeData.length;
     $('#statTotal').text(totalE);
     $('#statCheckIn').text(checkedInSet.size);
