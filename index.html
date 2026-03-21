@@ -64,19 +64,18 @@
         </button>
       </div>
 
-      <div id="fallbackWrapper" class="hidden d-flex flex-column justify-content-center align-items-center" style="width: 100%; height: 220px; background: #f8f9fa;">
-        <p class="text-danger small mb-3 fw-bold"><i class="fas fa-exclamation-triangle"></i> กรุณาเปิดกล้องผ่านปุ่มด้านล่าง</p>
-        <label class="btn btn-primary rounded-pill px-4 py-2 shadow m-0" style="cursor: pointer;">
-          <i class="fas fa-camera"></i> เปิดกล้องมือถือ
-          <input type="file" id="fallbackPhotoInput" accept="image/*" capture="user" class="hidden" onchange="handleFallbackPhoto(event)">
-        </label>
+      <div id="fallbackWrapper" class="hidden text-center p-3 d-flex flex-column justify-content-center align-items-center" style="width: 100%; height: 220px; background: #f8f9fa;">
+        <p class="text-danger small mb-3 fw-bold"><i class="fas fa-info-circle"></i> เปิดผ่านแอป LINE กรุณากดปุ่มด้านล่าง</p>
+        <input type="file" id="fallbackPhotoInput" accept="image/*" capture="user" class="form-control" onchange="handleFallbackPhoto(event)">
       </div>
+
     </div>
 
     <div id="previewContainer" class="hidden text-center mb-3">
       <img id="preview" style="max-width: 300px; border-radius: 15px; border: 2px solid #11998e;">
       <br><button type="button" class="btn btn-outline-danger btn-sm mt-2 rounded-pill px-4" onclick="retakePhoto()">ถ่ายใหม่</button>
     </div>
+    <canvas id="canvas" class="hidden"></canvas>
 
     <div class="mb-3 position-relative">
       <input type="text" id="empSearch" class="form-control form-control-lg" placeholder="🔍 ค้นหารหัส หรือ ชื่อพนักงาน..." autocomplete="off">
@@ -94,7 +93,6 @@
       <div class="col-6"><button type="button" class="btn-custom btn-checkout" id="btnCheckOut" onclick="submitData('Check-Out')" disabled>ออกงาน</button></div>
     </div>
   </div>
-  <canvas id="canvas" class="hidden"></canvas>
 </div>
 
 <div class="container-fluid d-flex justify-content-center align-items-start hidden" id="adminContainer" style="min-height: 100vh; padding-top: 20px;">
@@ -102,7 +100,7 @@
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h3 class="mb-0"><i class="fas fa-cogs text-primary"></i> Admin Dashboard</h3>
       <div>
-        <button type="button" class="btn btn-primary btn-sm rounded-pill me-2" onclick="loadAdminData()"><i class="fas fa-sync-alt"></i> รีเฟรช</button>
+        <button type="button" class="btn btn-primary btn-sm rounded-pill me-2" onclick="loadAdminData()"><i class="fas fa-sync-alt"></i> โหลดข้อมูลใหม่</button>
         <button type="button" class="btn btn-outline-danger btn-sm rounded-pill" onclick="closeAdmin()">ปิด</button>
       </div>
     </div>
@@ -230,6 +228,7 @@
     getLocation(); 
   }
 
+  // 🚀 ระบบกล้องอัจฉริยะ (อัปเดตดักจับ LINE แบบพิมพ์เล็ก/ใหญ่ครบถ้วน)
   function startCamera() {
     const v = document.getElementById('cameraStream');
     const videoWrapper = document.getElementById('videoWrapper');
@@ -237,7 +236,9 @@
     
     $('#cameraContainer').removeClass('hidden');
     
-    const isLineApp = navigator.userAgent.includes("Line") || navigator.userAgent.includes("LINE");
+    // ดักแอป LINE ให้แม่นยำขึ้น
+    const userAgent = navigator.userAgent.toLowerCase();
+    const isLineApp = userAgent.includes("line");
 
     if (!isLineApp && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
       navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false })
@@ -251,6 +252,7 @@
           fallbackWrapper.classList.remove('hidden');
         });
     } else {
+      // ถ้าเปิดใน LINE ให้แสดงปุ่มโหมดสำรอง
       videoWrapper.classList.add('hidden');
       fallbackWrapper.classList.remove('hidden');
     }
@@ -268,6 +270,7 @@
     $('#cameraContainer').addClass('hidden'); $('#previewContainer').removeClass('hidden');
   }
 
+  // 🟢 ฟังก์ชันรับรูปภาพจากปุ่มของ LINE
   function handleFallbackPhoto(event) {
     const file = event.target.files[0];
     if (file) {
@@ -283,7 +286,12 @@
     }
   }
 
-  function retakePhoto() { base64Image = ""; $('#fallbackPhotoInput').val(''); $('#previewContainer').addClass('hidden'); $('#cameraContainer').removeClass('hidden'); }
+  function retakePhoto() { 
+    base64Image = ""; 
+    $('#fallbackPhotoInput').val(''); // ล้างไฟล์เก่าออกให้ถ่ายใหม่ได้
+    $('#previewContainer').addClass('hidden'); 
+    $('#cameraContainer').removeClass('hidden'); 
+  }
 
   $(document).ready(async function() {
     setInterval(() => { const n = new Date(); $('#clock').text(n.toLocaleTimeString('th-TH')); $('#date').text(n.toLocaleDateString('th-TH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })); }, 1000);
@@ -363,7 +371,6 @@
 
   function closeAdmin() { $('#adminContainer').addClass('hidden'); $('#userContainer').removeClass('hidden'); }
 
-  // 🚀 โหลดข้อมูลและคำนวณสถิติอัจฉริยะ 100%
   async function loadAdminData() {
     Swal.fire({ title: 'กำลังดึงข้อมูลฐานระบบ...', didOpen: () => Swal.showLoading() });
 
@@ -376,30 +383,20 @@
 
     logs.forEach(r => {
       let isToday = false;
-
-      // 🟢 ดักจับวันที่ทุกรูปแบบ
       let rDateStr = String(r[0]).replace(/,/g, '').split(' ')[0];
       let parts = rDateStr.includes('/') ? rDateStr.split('/') : rDateStr.split('-');
       
       if (parts.length >= 3) {
         let p1 = parseInt(parts[0]), p2 = parseInt(parts[1]), p3 = parseInt(parts[2]);
-        // เช็คเผื่อทั้งสลับวันเดือน หรือปีเป็น ค.ศ. / พ.ศ.
-        if ((p1 === tDay && p2 === tMonth && p3 === tYear) || 
-            (p1 === tMonth && p2 === tDay && p3 === tYear) ||
-            (p1 === tYear && p2 === tMonth && p3 === tDay)) {
+        if ((p1 === tDay && p2 === tMonth && p3 === tYear) || (p1 === tMonth && p2 === tDay && p3 === tYear) || (p1 === tYear && p2 === tMonth && p3 === tDay)) {
           isToday = true;
         }
       }
 
-      // นับยอดสถิติของ "วันนี้"
-      if (isToday) {
-        if (String(r[3]).trim() === 'Check-In') {
-          checkedInSet.add(String(r[1]).trim());
-          let lateStatus = String(r[8] || '').trim();
-          if (lateStatus !== 'ปกติ' && lateStatus !== '-' && lateStatus !== '') { 
-            lateCount++; 
-          }
-        }
+      if (isToday && String(r[3]).trim() === 'Check-In') {
+        checkedInSet.add(String(r[1]).trim());
+        let lateStatus = String(r[8] || '').trim();
+        if (lateStatus !== 'ปกติ' && lateStatus !== '-' && lateStatus !== '') { lateCount++; }
       }
 
       let lateBadge = r[8] === "ปกติ" ? '<span class="badge bg-success">ปกติ</span>' : (r[8] && r[8] !== "-" ? '<span class="badge bg-danger">' + r[8] + '</span>' : "-");
